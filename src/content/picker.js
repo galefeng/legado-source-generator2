@@ -18,6 +18,11 @@
   let rootElement = null;
   let listItemSelector = '';
 
+  // Explore collector state
+  let isExploreCollectorActive = false;
+  let exploreCollectedItems = [];
+  let exploreCollectorPanel = null;
+
   // Known root elements for smart detection
   const KNOWN_ROOTS = {
     bookList: ['#bookList', '.book-list', '[data-book-list]', '.novel-list', '#novel-list', '.chapter-list'],
@@ -629,6 +634,84 @@
     document.head.appendChild(style);
   }
 
+  function startExploreCollector() {
+    if (isExploreCollectorActive) return;
+    isExploreCollectorActive = true;
+    exploreCollectedItems = [];
+
+    injectPickerStyles();
+
+    const panel = document.createElement('div');
+    panel.id = 'explore-collector-panel';
+    panel.className = 'picker-panel';
+    panel.innerHTML = `
+      <div class="picker-panel-title">收集发现页分类</div>
+      <div class="picker-panel-info">点击页面上的分类/排行链接<br>已收集: <span id="explore-count">0</span> 项</div>
+      <div class="picker-panel-shortcut">
+        <kbd>Esc</kbd> 完成收集
+      </div>
+    `;
+    document.body.appendChild(panel);
+    exploreCollectorPanel = panel;
+
+    document.addEventListener('click', onExploreClick, true);
+    document.addEventListener('keydown', onExploreKeydown, true);
+  }
+
+  function onExploreClick(e) {
+    if (!isExploreCollectorActive) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const el = e.target.closest('a');
+    if (!el) {
+      showToast('请点击一个链接元素', 'warning');
+      return;
+    }
+
+    const title = el.textContent.trim().substring(0, 50);
+    const url = el.href || '';
+
+    if (!title) {
+      showToast('该元素没有文本内容', 'warning');
+      return;
+    }
+
+    exploreCollectedItems.push({ title, url });
+    document.getElementById('explore-count').textContent = exploreCollectedItems.length;
+    showToast(`已添加: ${title}`, 'info');
+
+    el.classList.add('picker-selected');
+    setTimeout(() => el.classList.remove('picker-selected'), 500);
+  }
+
+  function onExploreKeydown(e) {
+    if (e.key === 'Escape' && isExploreCollectorActive) {
+      e.preventDefault();
+      e.stopPropagation();
+      finishExploreCollection();
+    }
+  }
+
+  function finishExploreCollection() {
+    isExploreCollectorActive = false;
+    document.removeEventListener('click', onExploreClick, true);
+    document.removeEventListener('keydown', onExploreKeydown, true);
+
+    if (exploreCollectorPanel) {
+      exploreCollectorPanel.remove();
+      exploreCollectorPanel = null;
+    }
+
+    chrome.runtime.sendMessage({
+      action: 'exploreCollected',
+      items: exploreCollectedItems,
+    });
+
+    showToast(`收集完成，共 ${exploreCollectedItems.length} 项`, 'info');
+    exploreCollectedItems = [];
+  }
+
   /**
    * Handle incoming messages from popup
    */
@@ -638,6 +721,11 @@
     switch (message.action) {
       case 'startPicker':
         startPicker(message);
+        sendResponse({ success: true });
+        break;
+
+      case 'startExploreCollector':
+        startExploreCollector();
         sendResponse({ success: true });
         break;
 

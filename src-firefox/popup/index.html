@@ -20,6 +20,34 @@
 
     <div class="rule-type-tabs" id="ruleTypeTabs"></div>
 
+    <!-- Explore URL Visual Editor -->
+    <div id="exploreUrlEditor" class="explore-editor hidden">
+      <div class="editor-toolbar">
+        <button id="exploreCollectBtn" class="btn btn-action">从页面收集元素</button>
+        <button id="exploreAddItemBtn" class="btn btn-action">手动添加</button>
+        <button id="exploreAddSeparatorBtn" class="btn btn-action">插入分隔</button>
+        <button id="exploreExportBtn" class="btn btn-action">导出 JSON</button>
+      </div>
+      <div class="editor-layout">
+        <div class="editor-cards" id="exploreCards">
+          <!-- Cards rendered here -->
+        </div>
+        <div class="editor-props" id="exploreProps">
+          <div class="props-placeholder">选择卡片编辑样式</div>
+        </div>
+      </div>
+      <div id="exploreJsonModal" class="modal hidden">
+        <div class="modal-content">
+          <h3>发现页 URL JSON</h3>
+          <textarea id="exploreJsonOutput" readonly></textarea>
+          <div class="modal-actions">
+            <button id="exploreCopyBtn" class="btn btn-primary">复制到剪贴板</button>
+            <button id="exploreCloseModalBtn" class="btn btn-secondary">关闭</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="step-indicator">
       <span id="stepText">1/9: 书籍列表容器</span>
       <div id="fieldStatusSummary" class="field-status-summary"></div>
@@ -50,6 +78,7 @@
       </div>
     </div>
   </div>
+  <script src="explore-url-editor.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

@@ -89,6 +89,7 @@ function getRuleState() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  initExploreEditor();
   renderRuleTypeTabs();
   renderFields();
   loadState();
@@ -835,6 +836,12 @@ function bindMessageListener() {
     switch (message.action) {
       case 'selectorSelected':
         handleSelectorSelected(message);
+        sendResponse({ success: true });
+        break;
+      case 'exploreCollected':
+        if (typeof window.handleExploreCollected === 'function') {
+          window.handleExploreCollected(message.items);
+        }
         sendResponse({ success: true });
         break;
       case 'pickerReady':
