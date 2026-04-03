@@ -52,7 +52,11 @@ The picker detects potential issues:
 | Key | Action |
 |-----|--------|
 | Escape | Exit picker mode |
-| Enter | Select hovered element and advance |
+| Enter | Confirm selection (list fields require two selections) |
+| ↑ | Navigate to parent element |
+| ↓ | Navigate to first child element |
+| ← | Navigate to previous sibling |
+| → | Navigate to next sibling |
 
 ## Project Structure
 
