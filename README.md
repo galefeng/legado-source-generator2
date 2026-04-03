@@ -22,10 +22,19 @@
 
 ## 安装
 
-1. 打开 Chrome 浏览器，访问 `chrome://extensions/`
+### Chrome / Edge
+
+1. 打开浏览器，访问 `chrome://extensions/`
 2. 开启右上角的"开发者模式"
 3. 点击"加载已解压的扩展程序"，选择 `src` 目录
 4. 建议固定扩展图标方便使用
+
+### Firefox
+
+1. 打开浏览器，访问 `about:debugging#/runtime/this-firefox`
+2. 点击"临时载入附加组件"
+3. 选择 `src-firefox/manifest.json` 文件
+4. 点击工具栏扩展图标即可打开侧边栏
 
 ## 使用方法
 
@@ -68,7 +77,7 @@
 ## 项目结构
 
 ```
-src/
+src/                    # Chrome / Edge 版本 (MV3)
 ├── manifest.json          # 扩展配置
 ├── background.js          # Service Worker（点击图标打开侧边栏）
 ├── content/
@@ -80,4 +89,17 @@ src/
 │   └── popup.css          # 侧边栏样式
 └── lib/
     └── selector-generator.js  # CSS 选择器生成算法
+
+src-firefox/            # Firefox 版本 (MV2)
+├── manifest.json          # 扩展配置
+├── background.js          # 后台脚本
+├── content/
+│   ├── picker.js
+│   └── picker.css
+├── popup/
+│   ├── index.html
+│   ├── popup.js
+│   └── popup.css
+└── lib/
+    └── selector-generator.js
 ```

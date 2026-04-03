@@ -305,37 +305,20 @@ function handleSelectElement() {
 }
 
 function reInjectContentScript(tabId, step, isListField, rootSelector, itemSelector) {
-  const injectJS = typeof chrome.scripting !== 'undefined'
-    ? () => chrome.scripting.executeScript({
-        target: { tabId },
-        files: ['lib/selector-generator.js', 'content/picker.js'],
-      })
-    : () => new Promise((resolve) => {
-        chrome.tabs.executeScript(tabId, { file: 'lib/selector-generator.js' }, () => {
-          chrome.tabs.executeScript(tabId, { file: 'content/picker.js' }, resolve);
-        });
+  chrome.tabs.executeScript(tabId, { file: 'lib/selector-generator.js' }, () => {
+    chrome.tabs.executeScript(tabId, { file: 'content/picker.js' }, () => {
+      chrome.tabs.insertCSS(tabId, { file: 'content/picker.css' }, () => {
+        setTimeout(() => {
+          chrome.tabs.sendMessage(tabId, {
+            action: 'startPicker',
+            step,
+            isListField,
+            rootSelector,
+            itemSelector,
+          });
+        }, 200);
       });
-
-  const injectCSS = typeof chrome.scripting !== 'undefined'
-    ? () => chrome.scripting.insertCSS({
-        target: { tabId },
-        files: ['content/picker.css'],
-      })
-    : () => new Promise((resolve) => {
-        chrome.tabs.insertCSS(tabId, { file: 'content/picker.css' }, resolve);
-      });
-
-  injectJS().then(() => {
-    injectCSS();
-    setTimeout(() => {
-      chrome.tabs.sendMessage(tabId, {
-        action: 'startPicker',
-        step,
-        isListField,
-        rootSelector,
-        itemSelector,
-      });
-    }, 200);
+    });
   });
 }
 

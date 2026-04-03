@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Legado 书源生成器</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <h1>Legado 书源生成器</h1>
+      <div class="header-meta">
+        <input type="text" id="bookSourceName" placeholder="书源名称" class="input-name">
+        <input type="text" id="bookSourceUrl" placeholder="书源网站URL" class="input-url">
+        <input type="text" id="exploreUrl" placeholder="发现页URL (如: 分类::{{page}})" class="input-url">
+        <input type="text" id="searchUrl" placeholder="搜索页URL (如: {{key}})" class="input-url">
+      </div>
+    </header>
+
+    <div class="rule-type-tabs" id="ruleTypeTabs"></div>
+
+    <div class="step-indicator">
+      <span id="stepText">1/9: 书籍列表容器</span>
+      <div id="fieldStatusSummary" class="field-status-summary"></div>
+    </div>
+
+    <main class="form-area">
+      <div id="fieldContainer"></div>
+    </main>
+
+    <footer class="footer">
+      <div class="nav-buttons">
+        <button id="prevBtn" class="btn btn-secondary" disabled>上一步</button>
+        <button id="nextBtn" class="btn btn-primary">下一步</button>
+      </div>
+      <button id="exportBtn" class="btn btn-success">导出 JSON</button>
+      <button id="resetBtn" class="btn btn-danger">重置</button>
+    </footer>
+
+    <div id="exportModal" class="modal hidden">
+      <div class="modal-content">
+        <h3>导出 JSON</h3>
+        <textarea id="jsonOutput" readonly></textarea>
+        <div class="modal-actions">
+          <button id="copyBtn" class="btn btn-primary">复制到剪贴板</button>
+          <button id="downloadBtn" class="btn btn-success">下载 JSON</button>
+          <button id="closeModalBtn" class="btn btn-secondary">关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
