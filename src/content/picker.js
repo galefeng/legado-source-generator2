@@ -30,39 +30,41 @@
    * @param {string} type - Toast type: 'warning' | 'error' | 'info'
    */
   function showToast(message, type = 'warning') {
-    let toast = document.getElementById('picker-toast');
-    if (!toast) {
-      toast = document.createElement('div');
-      toast.id = 'picker-toast';
-      toast.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 12px 20px;
-        border-radius: 6px;
-        font-size: 14px;
-        z-index: 10000;
-        max-width: 350px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        animation: toast-in 0.3s ease;
-      `;
-      document.body.appendChild(toast);
-    }
-
     const colors = {
       warning: '#faad14',
       error: '#ff4d4f',
       info: '#1890ff'
     };
 
-    toast.style.background = colors[type] || colors.warning;
-    toast.style.color = '#fff';
-    toast.textContent = message;
+    let container = document.getElementById('picker-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'picker-toast-container';
+      container.style.cssText = `
+        position: fixed;
+        right: 20px;
+        z-index: 10001;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        pointer-events: none;
+      `;
+      document.body.appendChild(container);
+    }
 
-    // Auto-hide after 4 seconds
+    const panel = document.querySelector('.picker-panel');
+    const panelBottom = panel ? panel.getBoundingClientRect().bottom + 12 : 160;
+    container.style.top = `${panelBottom}px`;
+
+    const toast = document.createElement('div');
+    toast.className = `picker-toast picker-toast-${type}`;
+    toast.textContent = message;
+    toast.style.background = colors[type] || colors.warning;
+    container.appendChild(toast);
+
     setTimeout(() => {
       if (toast && toast.parentNode) {
-        toast.style.animation = 'toast-out 0.3s ease';
+        toast.style.animation = 'toast-out 0.3s ease forwards';
         setTimeout(() => toast.remove(), 300);
       }
     }, 4000);
@@ -582,6 +584,9 @@
       firstItemElement.classList.remove('picker-first-item');
       firstItemElement = null;
     }
+
+    const container = document.getElementById('picker-toast-container');
+    if (container) container.remove();
 
     // Remove panel
     if (pickerPanel) {

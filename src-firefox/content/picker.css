@@ -121,3 +121,27 @@
     transform: translateX(20px);
   }
 }
+
+.picker-toast {
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  max-width: 320px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  color: #fff;
+  line-height: 1.4;
+  animation: toast-in 0.3s ease;
+  transition: top 0.3s ease;
+}
+
+.picker-toast-warning {
+  background: #faad14;
+}
+
+.picker-toast-error {
+  background: #ff4d4f;
+}
+
+.picker-toast-info {
+  background: #1890ff;
+}
