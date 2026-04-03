@@ -724,6 +724,13 @@ function handleExport() {
 }
 
 function generateJson() {
+  const exploreResult = typeof window.getExploreJsonString === 'function'
+    ? window.getExploreJsonString()
+    : (state.exploreUrl || '');
+  const exploreUrlValue = typeof exploreResult === 'string'
+    ? exploreResult
+    : (exploreResult.length > 0 ? JSON.stringify(exploreResult, null, 2) : '');
+
   const result = {
     ruleSearch: buildRuleSection('search'),
     ruleBookInfo: buildRuleSection('bookInfo'),
@@ -734,7 +741,7 @@ function generateJson() {
     bookSourceUrl: state.bookSourceUrl || '',
     bookSourceName: state.bookSourceName || '',
     searchUrl: state.searchUrl || '',
-    exploreUrl: state.exploreUrl || '',
+    exploreUrl: exploreUrlValue,
   };
   return result;
 }

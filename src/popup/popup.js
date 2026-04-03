@@ -151,7 +151,6 @@ function loadState() {
       state = { ...state, ...result.legadoSourceState };
       document.getElementById('bookSourceName').value = state.bookSourceName || '';
       document.getElementById('bookSourceUrl').value = state.bookSourceUrl || '';
-      document.getElementById('exploreUrl').value = state.exploreUrl || '';
       document.getElementById('searchUrl').value = state.searchUrl || '';
     }
     renderModeTabs();
@@ -167,7 +166,6 @@ function loadState() {
 function saveState() {
   state.bookSourceName = document.getElementById('bookSourceName').value;
   state.bookSourceUrl = document.getElementById('bookSourceUrl').value;
-  state.exploreUrl = document.getElementById('exploreUrl').value;
   state.searchUrl = document.getElementById('searchUrl').value;
   chrome.storage.local.set({ legadoSourceState: state });
 }
@@ -694,7 +692,6 @@ function bindEvents() {
 
   document.getElementById('bookSourceName').addEventListener('input', saveState);
   document.getElementById('bookSourceUrl').addEventListener('input', saveState);
-  document.getElementById('exploreUrl').addEventListener('input', saveState);
   document.getElementById('searchUrl').addEventListener('input', saveState);
 }
 
@@ -723,6 +720,13 @@ function handleExport() {
 }
 
 function generateJson() {
+  const exploreResult = typeof window.getExploreJsonString === 'function'
+    ? window.getExploreJsonString()
+    : (state.exploreUrl || '');
+  const exploreUrlValue = typeof exploreResult === 'string'
+    ? exploreResult
+    : (exploreResult.length > 0 ? JSON.stringify(exploreResult, null, 2) : '');
+
   const result = {
     ruleSearch: buildRuleSection('search'),
     ruleBookInfo: buildRuleSection('bookInfo'),
@@ -733,7 +737,7 @@ function generateJson() {
     bookSourceUrl: state.bookSourceUrl || '',
     bookSourceName: state.bookSourceName || '',
     searchUrl: state.searchUrl || '',
-    exploreUrl: state.exploreUrl || '',
+    exploreUrl: exploreUrlValue,
   };
   return result;
 }

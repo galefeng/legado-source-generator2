@@ -13,7 +13,6 @@
       <div class="header-meta">
         <input type="text" id="bookSourceName" placeholder="书源名称" class="input-name">
         <input type="text" id="bookSourceUrl" placeholder="书源网站URL" class="input-url">
-        <input type="text" id="exploreUrl" placeholder="发现页URL (如: 分类::{{page}})" class="input-url">
         <input type="text" id="searchUrl" placeholder="搜索页URL (如: {{key}})" class="input-url">
       </div>
     </header>
@@ -46,6 +45,16 @@
             <button id="exploreCloseModalBtn" class="btn btn-secondary">关闭</button>
           </div>
         </div>
+      </div>
+      <div class="explore-preview-box">
+        <div class="explore-preview-header">
+          <label>发现页 URL 预览</label>
+          <div class="explore-format-toggle">
+            <button class="format-btn active" data-format="2">样式二</button>
+            <button class="format-btn" data-format="1">样式一</button>
+          </div>
+        </div>
+        <textarea id="exploreUrlPreview" placeholder="[{&quot;title&quot;:&quot;同人小说&quot;,&quot;url&quot;:&quot;...&quot;}]"></textarea>
       </div>
     </div>
 

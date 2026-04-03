@@ -8,6 +8,7 @@ const EXPLORE_PROPS = [
 
 let exploreItems = [];
 let selectedCardIndex = -1;
+let exploreFormat = 2;
 
 function initExploreEditor() {
   bindExploreEvents();
@@ -37,19 +38,29 @@ function bindExploreEvents() {
   if (closeBtn) closeBtn.addEventListener('click', () => {
     document.getElementById('exploreJsonModal').classList.add('hidden');
   });
+
+  bindExplorePreviewInput();
+  bindFormatToggle();
 }
 
 function loadExploreState() {
   chrome.storage.local.get(['exploreEditorState'], (result) => {
-    if (result.exploreEditorState && result.exploreEditorState.items) {
-      exploreItems = result.exploreEditorState.items;
-      renderExploreCards();
+    if (result.exploreEditorState) {
+      if (result.exploreEditorState.items) {
+        exploreItems = result.exploreEditorState.items;
+        renderExploreCards();
+      }
+      if (result.exploreEditorState.format) {
+        exploreFormat = result.exploreEditorState.format;
+      }
+      updateExploreUrlPreview();
+      updateFormatButtons();
     }
   });
 }
 
 function saveExploreState() {
-  chrome.storage.local.set({ exploreEditorState: { items: exploreItems } });
+  chrome.storage.local.set({ exploreEditorState: { items: exploreItems, format: exploreFormat } });
 }
 
 function addExploreItem(item) {
@@ -68,6 +79,7 @@ function addExploreItem(item) {
   exploreItems.push({ ...defaults, ...item, style: { ...defaults.style, ...(item.style || {}) } });
   saveExploreState();
   renderExploreCards();
+  updateExploreUrlPreview();
 }
 
 function removeExploreItem(index) {
@@ -77,6 +89,7 @@ function removeExploreItem(index) {
   saveExploreState();
   renderExploreCards();
   renderPropsPanel();
+  updateExploreUrlPreview();
 }
 
 function startExploreCollection() {
@@ -106,6 +119,7 @@ window.handleExploreCollected = function(items) {
   items.forEach(item => {
     addExploreItem({ title: item.title, url: item.url });
   });
+  updateExploreUrlPreview();
 };
 
 function renderExploreCards() {
@@ -117,7 +131,9 @@ function renderExploreCards() {
     const sepClass = item.isSeparator ? ' separator' : '';
     const flexGrow = item.style?.layout_flexGrow ?? 1;
     const flexBasis = item.style?.layout_flexBasisPercent ?? -1;
-    const widthStyle = flexBasis > 0 ? `flex: ${flexGrow} 0 ${flexBasis}%;` : `flex: ${flexGrow};`;
+    const widthStyle = flexBasis > 0
+      ? `flex: 0 0 ${flexBasis * 100}%; max-width: ${flexBasis * 100}%;`
+      : `flex: 1 0 calc((100% - 8px) / 3);`;
 
     return `<div class="editor-card${selected}${sepClass}" data-index="${i}" style="${widthStyle}">
       <span class="card-title">${escapeHtml(item.title)}</span>
@@ -222,8 +238,8 @@ function initCardResize() {
   function onResizeMove(e) {
     if (!resizing || resizeCardIndex < 0) return;
     const dx = e.clientX - resizeStartX;
-    const pctChange = Math.round(dx / 3);
-    const newBasis = Math.max(-1, resizeStartFlexBasis + pctChange);
+    const pctChange = dx / 100;
+    const newBasis = Math.round((Math.max(-1, Math.min(1, resizeStartFlexBasis + pctChange))) * 100) / 100;
     exploreItems[resizeCardIndex].style.layout_flexBasisPercent = newBasis;
     renderExploreCards();
     if (selectedCardIndex === resizeCardIndex) renderPropsPanel();
@@ -311,27 +327,55 @@ function renderPropsPanel() {
 }
 
 function exportExploreJson() {
-  const json = exploreItems.map(item => {
-    const obj = { title: item.title, url: item.url };
-    const style = {};
-    EXPLORE_PROPS.forEach(prop => {
-      const val = item.style?.[prop];
-      if (val !== undefined && val !== null && val !== false && val !== 'auto' && val !== -1 && val !== 0) {
-        style[prop] = val;
-      }
-    });
-    if (Object.keys(style).length > 0) {
-      obj.style = style;
-    }
-    return obj;
-  });
+  const output = exploreFormat === 1
+    ? itemsToExploreUrlFormat1(exploreItems)
+    : JSON.stringify(itemsToExploreJson(exploreItems), null, 2);
 
-  document.getElementById('exploreJsonOutput').value = JSON.stringify(json, null, 2);
+  document.getElementById('exploreJsonOutput').value = output;
   document.getElementById('exploreJsonModal').classList.remove('hidden');
 }
 
 function getExploreJsonString() {
-  return exploreItems.map(item => {
+  return exploreFormat === 1
+    ? itemsToExploreUrlFormat1(exploreItems)
+    : itemsToExploreJson(exploreItems);
+}
+
+window.getExploreUrlEditorItems = getExploreJsonString;
+window.itemsToExploreUrl = itemsToExploreUrl;
+window.clearExploreEditor = function() {
+  exploreItems = [];
+  selectedCardIndex = -1;
+  saveExploreState();
+  renderExploreCards();
+  renderPropsPanel();
+  updateExploreUrlPreview();
+};
+
+function itemsToExploreUrl(items) {
+  return items.map(item => {
+    const url = item.isSeparator ? '' : item.url;
+    return `${item.title}::${url}`;
+  }).join('\n');
+}
+
+function updateExploreUrlPreview() {
+  const textarea = document.getElementById('exploreUrlPreview');
+  if (!textarea) return;
+  textarea.value = exploreFormat === 1
+    ? itemsToExploreUrlFormat1(exploreItems)
+    : JSON.stringify(itemsToExploreJson(exploreItems), null, 2);
+}
+
+function itemsToExploreUrlFormat1(items) {
+  return items.map(item => {
+    const url = item.isSeparator ? '' : item.url;
+    return `${item.title}::${url}`;
+  }).join('\n');
+}
+
+function itemsToExploreJson(items) {
+  return items.map(item => {
     const obj = { title: item.title, url: item.url };
     const style = {};
     EXPLORE_PROPS.forEach(prop => {
@@ -345,11 +389,50 @@ function getExploreJsonString() {
   });
 }
 
-window.getExploreUrlEditorItems = getExploreJsonString;
-window.clearExploreEditor = function() {
-  exploreItems = [];
-  selectedCardIndex = -1;
-  saveExploreState();
-  renderExploreCards();
-  renderPropsPanel();
-};
+function bindFormatToggle() {
+  document.querySelectorAll('.format-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      exploreFormat = parseInt(btn.dataset.format, 10);
+      saveExploreState();
+      updateExploreUrlPreview();
+      updateFormatButtons();
+    });
+  });
+}
+
+function updateFormatButtons() {
+  document.querySelectorAll('.format-btn').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.format, 10) === exploreFormat);
+  });
+}
+
+function bindExplorePreviewInput() {
+  const textarea = document.getElementById('exploreUrlPreview');
+  if (!textarea) return;
+
+  textarea.addEventListener('input', () => {
+    const lines = textarea.value.split('\n').filter(l => l.trim());
+    exploreItems = lines.map(line => {
+      const sepIdx = line.indexOf('::');
+      if (sepIdx === -1) {
+        return { title: line.trim(), url: '', isSeparator: false, style: getDefaultStyle() };
+      }
+      const title = line.substring(0, sepIdx).trim();
+      const url = line.substring(sepIdx + 2).trim();
+      return { title, url, isSeparator: !url, style: getDefaultStyle() };
+    });
+    saveExploreState();
+    renderExploreCards();
+    renderPropsPanel();
+  });
+}
+
+function getDefaultStyle() {
+  return {
+    layout_flexGrow: 1,
+    layout_flexShrink: 0,
+    layout_alignSelf: 'auto',
+    layout_flexBasisPercent: -1,
+    layout_wrapBefore: false,
+  };
+}
