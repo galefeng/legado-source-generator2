@@ -292,6 +292,18 @@ body {
   font-size: 12px;
 }
 
+.list-hint {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--warning-dim, rgba(217, 119, 6, 0.1));
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--warning);
+  text-align: center;
+}
+
 /* ── Buttons ────────────────────────────── */
 
 .btn {

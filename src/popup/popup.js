@@ -208,6 +208,7 @@ function renderFields() {
           <input type="text" id="indexEnd" class="input-field index-field" value="${escapeHtml(listIndex.end || '')}" placeholder="结束">
         </div>
       </div>
+      <div class="list-hint">⚠️ <strong>需要选择两个同列表元素</strong>，自动提取交集生成选择器</div>
       ` : ''}
       ${fieldState === 'selected' && fieldData.selector ? `
         <div class="selector-info">
