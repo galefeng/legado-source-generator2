@@ -66,6 +66,7 @@ const RULE_TYPES = {
 };
 
 let state = {
+  activeMode: 'rules',
   activeRuleType: 'explore',
   rules: {
     explore: { currentStep: 0, fields: {}, fieldStates: {}, bookListSelector: null },
@@ -88,8 +89,55 @@ function getRuleState() {
   return state.rules[state.activeRuleType];
 }
 
+function renderModeTabs() {
+  const container = document.getElementById('modeTabs');
+  if (!container) return;
+
+  const modes = [
+    { key: 'rules', label: '规则' },
+    { key: 'exploreUrl', label: '发现页URL' },
+  ];
+
+  container.innerHTML = modes.map(m => {
+    const active = m.key === state.activeMode ? ' active' : '';
+    return `<button class="rule-tab${active}" data-mode="${m.key}">${m.label}</button>`;
+  }).join('');
+
+  container.querySelectorAll('.rule-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.activeMode = btn.dataset.mode;
+      saveState();
+      renderModeTabs();
+      updateEditorVisibility();
+    });
+  });
+}
+
+function updateEditorVisibility() {
+  const editor = document.getElementById('exploreUrlEditor');
+  const ruleTabs = document.getElementById('ruleTypeTabs');
+  const stepIndicator = document.querySelector('.step-indicator');
+  const formArea = document.querySelector('.form-area');
+  const footer = document.querySelector('.footer');
+
+  if (state.activeMode === 'exploreUrl') {
+    editor?.classList.remove('hidden');
+    ruleTabs?.classList.add('hidden');
+    stepIndicator?.classList.add('hidden');
+    formArea?.classList.add('hidden');
+    footer?.classList.add('hidden');
+  } else {
+    editor?.classList.add('hidden');
+    ruleTabs?.classList.remove('hidden');
+    stepIndicator?.classList.remove('hidden');
+    formArea?.classList.remove('hidden');
+    footer?.classList.remove('hidden');
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initExploreEditor();
+  renderModeTabs();
   renderRuleTypeTabs();
   renderFields();
   loadState();
@@ -106,11 +154,13 @@ function loadState() {
       document.getElementById('exploreUrl').value = state.exploreUrl || '';
       document.getElementById('searchUrl').value = state.searchUrl || '';
     }
+    renderModeTabs();
     renderRuleTypeTabs();
     updateStepIndicator();
     renderFields();
     updateNavButtons();
     renderFieldStatusSummary();
+    updateEditorVisibility();
   });
 }
 
