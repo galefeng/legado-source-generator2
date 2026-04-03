@@ -31,6 +31,8 @@
 
 ### Firefox
 
+> ⚠️ **注意**：本扩展主要基于 Chrome (MV3) 开发和测试，Firefox 版本（MV2）为适配移植版本，可能存在未知 bug。如遇问题，请优先使用 Chrome / Edge 版本。
+
 1. 打开浏览器，访问 `about:debugging#/runtime/this-firefox`
 2. 点击"临时载入附加组件"
 3. 选择 `src-firefox/manifest.json` 文件

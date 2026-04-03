@@ -174,10 +174,28 @@ function renderFields() {
   const value = fieldData.value || '';
   const isManual = fieldState === 'manual';
   const isListField = ['bookList', 'chapterList'].includes(field.key);
-  const listIndex = isListField ? (rule.listIndex || {}) : {};
-  const filteredPreviews = isListField && fieldData.previews
-    ? filterPreviewsByIndex(fieldData.previews, listIndex)
+  const fieldIndex = fieldData.listIndex || {};
+  const filteredPreviews = fieldData.previews
+    ? filterPreviewsByIndex(fieldData.previews, fieldIndex, isListField)
     : fieldData.previews;
+
+  const indexHTML = isListField
+    ? `<div class="index-row">
+        <label>索引范围</label>
+        <div class="index-inputs">
+          <input type="text" id="indexStart" class="input-field index-field" value="${escapeHtml(fieldIndex.start || '')}" placeholder="0">
+          <span class="index-sep">至</span>
+          <input type="text" id="indexEnd" class="input-field index-field" value="${escapeHtml(fieldIndex.end || '')}" placeholder="-1">
+          <button id="indexApplyBtn" class="btn btn-action btn-index-apply">确认</button>
+        </div>
+      </div>`
+    : `<div class="index-row index-row-single">
+        <label>索引</label>
+        <div class="index-inputs-single">
+          <input type="text" id="indexSingle" class="input-field index-field" value="${escapeHtml(fieldIndex.single || '')}" placeholder="0">
+          <button id="indexApplyBtn" class="btn btn-action btn-index-apply">确认</button>
+        </div>
+      </div>`;
 
   container.innerHTML = `
     <div class="field-item">
@@ -199,21 +217,14 @@ function renderFields() {
         <button id="clearBtn" class="btn btn-action btn-clear">清除</button>
         ` : ''}
       </div>
+      ${indexHTML}
       ${isListField ? `
-      <div class="index-row">
-        <label>索引范围</label>
-        <div class="index-inputs">
-          <input type="text" id="indexStart" class="input-field index-field" value="${escapeHtml(listIndex.start || '')}" placeholder="起始">
-          <span class="index-sep">至</span>
-          <input type="text" id="indexEnd" class="input-field index-field" value="${escapeHtml(listIndex.end || '')}" placeholder="结束">
-        </div>
-      </div>
       <div class="list-hint">⚠️ <strong>需要选择两个同列表元素</strong>，自动提取交集生成选择器</div>
       ` : ''}
-      ${fieldState === 'selected' && fieldData.selector ? `
+      ${fieldState === 'selected' && fieldData.rawSelector ? `
         <div class="selector-info">
           <span class="selector-label">选择器:</span>
-          <code class="selector-value">${escapeHtml(fieldData.selector)}</code>
+          <code class="selector-value">${escapeHtml(fieldData.rawSelector)}</code>
         </div>
         ${filteredPreviews && filteredPreviews.length > 0 ? `
           <div class="preview-section">
@@ -256,6 +267,10 @@ function bindFieldEvents() {
   if (indexStart) indexStart.addEventListener('input', handleIndexInput);
   const indexEnd = document.getElementById('indexEnd');
   if (indexEnd) indexEnd.addEventListener('input', handleIndexInput);
+  const indexSingle = document.getElementById('indexSingle');
+  if (indexSingle) indexSingle.addEventListener('input', handleIndexInput);
+  const indexApplyBtn = document.getElementById('indexApplyBtn');
+  if (indexApplyBtn) indexApplyBtn.addEventListener('click', handleIndexApply);
   const clearBtn = document.getElementById('clearBtn');
   if (clearBtn) clearBtn.addEventListener('click', handleClearField);
 }
@@ -273,12 +288,9 @@ function handleSelectElement() {
     return;
   }
 
-  // Extract item selector from bookListSelector (remove @css: prefix if present)
   let itemSelector = '';
   if (rule.bookListSelector && isPageScopedList) {
-    itemSelector = rule.bookListSelector.startsWith('@css:')
-      ? rule.bookListSelector.slice(5)
-      : rule.bookListSelector;
+    itemSelector = rule.bookListSelector;
   }
 
   rule.fieldStates[field.key] = 'picking';
@@ -367,7 +379,7 @@ function handleSkip() {
     }
   }
 
-  rule.fields[field.key] = { value: '', state: 'skipped', selector: '' };
+  rule.fields[field.key] = { value: '', state: 'skipped', rawSelector: '' };
   rule.fieldStates[field.key] = 'skipped';
   saveState();
   goToNextStep();
@@ -382,7 +394,7 @@ function handleManualInput() {
     rule.fieldStates[field.key] = 'pending';
   } else {
     rule.fieldStates[field.key] = 'manual';
-    rule.fields[field.key] = rule.fields[field.key] || { value: '', state: 'manual', selector: '' };
+    rule.fields[field.key] = rule.fields[field.key] || { value: '', state: 'manual', rawSelector: '' };
     rule.fields[field.key].state = 'manual';
   }
 
@@ -409,7 +421,6 @@ function handleClearField() {
   const listFields = ['bookList', 'chapterList'];
   if (listFields.includes(field.key)) {
     rule.bookListSelector = null;
-    rule.listIndex = { start: '', end: '' };
   }
 
   saveState();
@@ -422,17 +433,124 @@ function handleIndexInput(e) {
   const fields = getFields();
   const rule = getRuleState();
   const field = fields[rule.currentStep];
-  const isListField = ['bookList', 'chapterList'].includes(field.key);
-  if (!isListField) return;
-
-  if (!rule.listIndex) rule.listIndex = { start: '', end: '' };
-  rule.listIndex[e.target.id === 'indexStart' ? 'start' : 'end'] = e.target.value;
+  const fieldData = rule.fields[field.key] || {};
+  if (!fieldData.listIndex) fieldData.listIndex = {};
+  if (e.target.id === 'indexSingle') {
+    fieldData.listIndex.single = e.target.value;
+  } else {
+    fieldData.listIndex[e.target.id === 'indexStart' ? 'start' : 'end'] = e.target.value;
+  }
   saveState();
-  renderFields();
 }
 
-function filterPreviewsByIndex(previews, index) {
+function handleIndexApply() {
+  const fields = getFields();
+  const rule = getRuleState();
+  const field = fields[rule.currentStep];
+  const isListField = ['bookList', 'chapterList'].includes(field.key);
+
+  const fieldData = rule.fields[field.key];
+  if (!fieldData || !fieldData.rawSelector) return;
+
+  if (!fieldData.listIndex) fieldData.listIndex = {};
+
+  const baseSelector = fieldData.rawSelector;
+
+  if (isListField) {
+    const { start, end } = fieldData.listIndex;
+    const startVal = start ? parseInt(start, 10) : 0;
+    const endVal = end ? parseInt(end, 10) : 0;
+
+    let jsCode;
+    let endExpr;
+    if (endVal > 0) {
+      endExpr = String(endVal);
+    } else if (endVal < -1) {
+      endExpr = `list.size() + (${endVal}) + 1`;
+    } else {
+      endExpr = 'list.size()';
+    }
+
+    if (startVal > 1 || endVal > 0 || endVal < -1) {
+      const s = startVal > 1 ? startVal - 1 : 0;
+      jsCode = `<js>(function(result){
+        var doc = org.jsoup.Jsoup.parse(result);
+        var list = doc.select("${baseSelector}");
+        var start = ${s};
+        var end = ${endExpr};
+        var result = new org.jsoup.select.Elements();
+        for (var i = start; i < end; i++) {
+          result.add(list.get(i));
+        }
+        return result;
+      })(result)</js>`;
+    } else {
+      jsCode = `<js>(function(result){
+        var doc = org.jsoup.Jsoup.parse(result);
+        var list = doc.select("${baseSelector}");
+        return list;
+      })(result)</js>`;
+    }
+
+    rule.fields[field.key].value = jsCode;
+  } else {
+    const singleVal = fieldData.listIndex.single ? parseInt(fieldData.listIndex.single, 10) : 0;
+
+    let jsCode;
+    if (singleVal !== 0) {
+      const index = singleVal > 0 ? singleVal - 1 : singleVal;
+      let returnExpr;
+      if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) {
+        returnExpr = `String(list.get(${index}).attr("href"))`;
+      } else if (field.key === 'coverUrl') {
+        returnExpr = `String(list.get(${index}).attr("src"))`;
+      } else {
+        returnExpr = `String(list.get(${index}).text())`;
+      }
+
+      jsCode = `<js>(function(result){
+    var list = result.select("${baseSelector}");
+    var index = ${index};
+    return ${returnExpr};
+})(result)</js>`;
+    } else {
+      let returnExpr;
+      if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) {
+        returnExpr = 'String(list.attr("href"))';
+      } else if (field.key === 'coverUrl') {
+        returnExpr = 'String(list.attr("src"))';
+      } else {
+        returnExpr = 'String(list.text())';
+      }
+
+      jsCode = `<js>(function(result){
+    var list = result.select("${baseSelector}");
+    return ${returnExpr};
+})(result)</js>`;
+    }
+
+    rule.fields[field.key].value = jsCode;
+  }
+
+  saveState();
+  renderFields();
+  renderFieldStatusSummary();
+}
+
+function filterPreviewsByIndex(previews, index, isListField) {
   if (!previews || !previews.length) return previews;
+
+  if (!isListField) {
+    if (index.single !== undefined && index.single !== '') {
+      const i = parseInt(index.single, 10) - 1;
+      if (i >= 0 && i < previews.length) {
+        return [previews[i]];
+      }
+      return [];
+    }
+    return previews;
+  }
+
   const start = index.start ? parseInt(index.start, 10) : 0;
   const end = index.end ? parseInt(index.end, 10) : previews.length;
   const s = start < 0 ? previews.length + start : Math.max(0, start - 1);
@@ -447,7 +565,7 @@ function handleFieldInput(e) {
   const value = e.target.value;
 
   if (!rule.fields[field.key]) {
-    rule.fields[field.key] = { value: '', state: 'manual', selector: '' };
+    rule.fields[field.key] = { value: '', state: 'manual', rawSelector: '' };
   }
   rule.fields[field.key].value = value;
   rule.fields[field.key].state = 'manual';
@@ -576,17 +694,10 @@ function buildRuleSection(type) {
 
   fields.forEach(field => {
     const fieldData = rule.fields[field.key];
-    if (fieldData && (fieldData.selector || fieldData.value)) {
-      section[field.key] = fieldData.selector || fieldData.value;
+    if (fieldData && fieldData.value) {
+      section[field.key] = fieldData.value;
     }
   });
-
-  if (rule.listIndex && (rule.listIndex.start || rule.listIndex.end)) {
-    const parts = [];
-    if (rule.listIndex.start) parts.push(rule.listIndex.start);
-    if (rule.listIndex.end) parts.push(rule.listIndex.end);
-    section.bookListIndex = parts.join(',');
-  }
 
   return section;
 }
@@ -668,21 +779,22 @@ window.togglePreviews = function(header) {
 function toLegadoRule(selector, fieldKey) {
   const listFields = ['bookList', 'chapterList'];
   if (listFields.includes(fieldKey)) {
-    return `@css:${selector}`;
+    return selector;
   }
 
-  switch (fieldKey) {
-    case 'bookUrl':
-    case 'chapterUrl':
-    case 'tocUrl':
-    case 'nextTocUrl':
-    case 'nextContentUrl':
-      return `@css:${selector}@href`;
-    case 'coverUrl':
-      return `@css:${selector}@src`;
-    default:
-      return `@css:${selector}@text`;
+  let returnExpr;
+  if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(fieldKey)) {
+    returnExpr = 'String(list.attr("href"))';
+  } else if (fieldKey === 'coverUrl') {
+    returnExpr = 'String(list.attr("src"))';
+  } else {
+    returnExpr = 'String(list.text())';
   }
+
+  return `<js>(function(result){
+    var list = result.select("${selector}");
+    return ${returnExpr};
+})(result)</js>`;
 }
 
 function handleSelectorSelected(message) {
@@ -702,7 +814,7 @@ function handleSelectorSelected(message) {
   rule.fields[step] = {
     value: legadoRule,
     state: 'selected',
-    selector: legadoRule,
+    rawSelector: selector,
     previews: previews || [],
   };
   rule.fieldStates[step] = 'selected';

@@ -292,6 +292,46 @@ body {
   font-size: 12px;
 }
 
+.index-row-single {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.index-row-single label {
+  display: block;
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.index-inputs-single {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.index-inputs-single .index-field {
+  width: 80px;
+}
+
+.btn-index-apply {
+  padding: 6px 12px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-index-apply:hover {
+  background: var(--accent-hover);
+}
+
 .list-hint {
   margin-top: 10px;
   padding: 10px 12px;
