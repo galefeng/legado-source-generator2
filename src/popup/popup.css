@@ -708,6 +708,108 @@ body {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.explore-editor .editor-toolbar .toolbar-left {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.explore-editor .editor-toolbar .btn-clear {
+  color: var(--danger);
+}
+
+.explore-collection-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  margin: 8px 0;
+}
+
+.explore-collection-status .status-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.explore-collection-status .status-icon {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.explore-collection-status .status-count {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.explore-collection-status .btn-stop-collect {
+  margin-left: auto;
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.explore-collection-status .btn-stop-collect:hover {
+  background: var(--danger);
+  opacity: 0.85;
+}
+
+.picker-status-container {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  background: var(--accent-dim);
+  margin-top: 8px;
+}
+
+.picker-status-container .picker-status-step {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.picker-status-container .picker-status-element {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  word-break: break-all;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+.picker-status-container .picker-status-shortcuts {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.picker-status-container .picker-status-shortcuts kbd {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: var(--mono);
+  font-size: 10px;
 }
 
 .explore-editor .editor-layout {
@@ -963,4 +1065,44 @@ body {
   outline: none;
   border-color: var(--border-focus);
   box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+.explore-editor .explore-collection-indicator {
+  margin-top: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  background: var(--accent-dim);
+}
+
+.explore-editor .explore-collection-indicator .indicator-step {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.explore-editor .explore-collection-indicator .indicator-element {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  word-break: break-all;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+.explore-editor .explore-collection-indicator .indicator-shortcuts {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.explore-editor .explore-collection-indicator .indicator-shortcuts kbd {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: var(--mono);
+  font-size: 10px;
 }

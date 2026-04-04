@@ -118,20 +118,20 @@ function updateEditorVisibility() {
   const ruleTabs = document.getElementById('ruleTypeTabs');
   const stepIndicator = document.querySelector('.step-indicator');
   const formArea = document.querySelector('.form-area');
-  const footer = document.querySelector('.footer');
+  const navButtons = document.getElementById('navButtons');
 
   if (state.activeMode === 'exploreUrl') {
     editor?.classList.remove('hidden');
     ruleTabs?.classList.add('hidden');
     stepIndicator?.classList.add('hidden');
     formArea?.classList.add('hidden');
-    footer?.classList.add('hidden');
+    navButtons?.classList.add('hidden');
   } else {
     editor?.classList.add('hidden');
     ruleTabs?.classList.remove('hidden');
     stepIndicator?.classList.remove('hidden');
     formArea?.classList.remove('hidden');
-    footer?.classList.remove('hidden');
+    navButtons?.classList.remove('hidden');
   }
 }
 
@@ -558,7 +558,8 @@ function handleIndexApply() {
       }
 
       jsCode = `<js>(function(result){
-    var list = result.select("${baseSelector}");
+    var doc = org.jsoup.Jsoup.parse(result);
+    var list = doc.select("${baseSelector}");
     var index = ${index};
     return ${returnExpr};
 })(result)</js>`;
@@ -573,7 +574,8 @@ function handleIndexApply() {
       }
 
       jsCode = `<js>(function(result){
-    var list = result.select("${baseSelector}");
+    var doc = org.jsoup.Jsoup.parse(result);
+    var list = doc.select("${baseSelector}");
     return ${returnExpr};
 })(result)</js>`;
     }
@@ -794,17 +796,19 @@ function handleReset() {
     content: { currentStep: 0, fields: {}, fieldStates: {}, bookListSelector: null },
   };
   state.activeRuleType = 'explore';
-  state.exploreUrl = '';
   state.searchUrl = '';
   state.bookSourceName = '';
   state.bookSourceUrl = '';
 
-  chrome.storage.local.remove('legadoSourceState');
+  chrome.storage.local.remove(['legadoSourceState', 'exploreEditorState']);
 
   document.getElementById('bookSourceName').value = '';
   document.getElementById('bookSourceUrl').value = '';
-  document.getElementById('exploreUrl').value = '';
   document.getElementById('searchUrl').value = '';
+
+  if (typeof window.clearExploreEditor === 'function') {
+    window.clearExploreEditor();
+  }
 
   renderRuleTypeTabs();
   updateStepIndicator();
@@ -847,7 +851,8 @@ function toLegadoRule(selector, fieldKey) {
   }
 
   return `<js>(function(result){
-    var list = result.select("${selector}");
+    var doc = org.jsoup.Jsoup.parse(result);
+    var list = doc.select("${selector}");
     return ${returnExpr};
 })(result)</js>`;
 }
@@ -897,9 +902,32 @@ function bindMessageListener() {
         }
         sendResponse({ success: true });
         break;
+      case 'exploreItemCollected':
+        if (typeof window.handleExploreItemCollected === 'function') {
+          window.handleExploreItemCollected(message.item, message.total);
+        }
+        sendResponse({ success: true });
+        break;
+      case 'exploreCollectionStarted':
+        if (typeof window.handleExploreCollectionStarted === 'function') {
+          window.handleExploreCollectionStarted();
+        }
+        sendResponse({ success: true });
+        break;
+      case 'exploreElementHover':
+        if (typeof window.handleExploreElementHover === 'function') {
+          window.handleExploreElementHover(message);
+        }
+        sendResponse({ success: true });
+        break;
       case 'pickerReady':
+        showPickerStatus();
+        break;
+      case 'pickerElementInfo':
+        updatePickerStatus(message);
         break;
       case 'pickerStopped': {
+        hidePickerStatus();
         const fields = getFields();
         const rule = getRuleState();
         const currentField = fields[rule.currentStep];
@@ -916,4 +944,21 @@ function bindMessageListener() {
     }
     return true;
   });
+}
+
+function showPickerStatus() {
+  const container = document.getElementById('pickerStatusContainer');
+  if (container) container.classList.remove('hidden');
+}
+
+function hidePickerStatus() {
+  const container = document.getElementById('pickerStatusContainer');
+  if (container) container.classList.add('hidden');
+}
+
+function updatePickerStatus(message) {
+  const stepEl = document.getElementById('pickerStatusStep');
+  const elementEl = document.getElementById('pickerStatusElement');
+  if (stepEl) stepEl.textContent = message.step || '-';
+  if (elementEl) elementEl.textContent = message.elementInfo ? `${message.elementInfo} ${message.elementText || ''}` : '-';
 }

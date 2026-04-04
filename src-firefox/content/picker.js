@@ -11,7 +11,6 @@
   let currentHoveredElement = null;
   let selectedElement = null;
   let firstItemElement = null;
-  let pickerPanel = null;
   let hoverTimeout = null;
   let currentStep = 'bookList';
   let isListField = false;
@@ -21,7 +20,6 @@
   // Explore collector state
   let isExploreCollectorActive = false;
   let exploreCollectedItems = [];
-  let exploreCollectorPanel = null;
 
   // Known root elements for smart detection
   const KNOWN_ROOTS = {
@@ -47,6 +45,7 @@
       container.id = 'picker-toast-container';
       container.style.cssText = `
         position: fixed;
+        top: 20px;
         right: 20px;
         z-index: 10001;
         display: flex;
@@ -56,10 +55,6 @@
       `;
       document.body.appendChild(container);
     }
-
-    const panel = document.querySelector('.picker-panel');
-    const panelBottom = panel ? panel.getBoundingClientRect().bottom + 12 : 160;
-    container.style.top = `${panelBottom}px`;
 
     const toast = document.createElement('div');
     toast.className = `picker-toast picker-toast-${type}`;
@@ -138,54 +133,7 @@
   }
 
   /**
-   * Create floating panel for element info
-   */
-  function createPickerPanel() {
-    if (pickerPanel) return pickerPanel;
-
-    pickerPanel = document.createElement('div');
-    pickerPanel.className = 'picker-panel';
-    pickerPanel.innerHTML = `
-      <div class="picker-panel-title">Element Picker</div>
-      <div class="picker-panel-info">Hover over an element to inspect</div>
-      <div class="picker-panel-shortcut">
-        <kbd>Esc</kbd> to cancel | <kbd>Click</kbd> to select
-      </div>
-    `;
-    document.body.appendChild(pickerPanel);
-    return pickerPanel;
-  }
-
-  /**
-   * Update panel with element info
-   * @param {Element} element - The hovered element
-   */
-  function updatePanel(element) {
-    if (!pickerPanel) return;
-
-    const tagName = element.tagName.toLowerCase();
-    const id = element.id ? `#${element.id}` : '';
-    const classes = element.className ? `.${element.className.trim().replace(/\s+/g, '.')}` : '';
-    const text = element.textContent ? element.textContent.trim().substring(0, 50) : '';
-
-    const infoEl = pickerPanel.querySelector('.picker-panel-info');
-    const titleEl = pickerPanel.querySelector('.picker-panel-title');
-
-    if (titleEl) {
-      const stepLabel = firstItemElement ? `${currentStep} (2/2)` : `${currentStep}`;
-      titleEl.textContent = `Selecting: ${stepLabel}`;
-    }
-
-    if (infoEl) {
-      infoEl.innerHTML = `
-        <strong>&lt;${tagName}${id}${classes}&gt;</strong><br>
-        ${text}${text.length >= 50 ? '...' : ''}
-      `;
-    }
-  }
-
-  /**
-   * Check if element matches current step context
+    * Check if element matches current step context
    * @param {Element} element - The element to check
    * @returns {Object} - { matches: boolean, warning: string }
    */
@@ -248,11 +196,26 @@
     currentHoveredElement = element;
     element.classList.add('picker-hover');
 
-    // Debounce panel update
     clearTimeout(hoverTimeout);
     hoverTimeout = setTimeout(() => {
-      updatePanel(element);
+      sendElementInfo(element);
     }, 50);
+  }
+
+  function sendElementInfo(element) {
+    const tagName = element.tagName.toLowerCase();
+    const id = element.id ? `#${element.id}` : '';
+    const classes = element.className && typeof element.className === 'string'
+      ? `.${element.className.trim().replace(/\s+/g, '.')}` : '';
+    const text = element.textContent ? element.textContent.trim().substring(0, 80) : '';
+    const stepLabel = firstItemElement ? `${currentStep} (2/2)` : `${currentStep}`;
+
+    chrome.runtime.sendMessage({
+      action: 'pickerElementInfo',
+      step: stepLabel,
+      elementInfo: `<${tagName}${id}${classes}>`,
+      elementText: text.length >= 80 ? text + '...' : text,
+    });
   }
 
   /**
@@ -293,7 +256,7 @@
     selectedElement = element;
     currentHoveredElement = element;
     element.classList.add('picker-selected');
-    updatePanel(element);
+    sendElementInfo(element);
 
     showToast('已锁定，按 ↑↓ 调整，Enter 确认', 'info');
   }
@@ -309,8 +272,11 @@
       stopPicker();
     } else if (event.key === 'Enter') {
       event.preventDefault();
+      event.stopPropagation();
       if (currentHoveredElement) {
         confirmSelection();
+      } else {
+        showToast('请先点击选择一个元素', 'warning');
       }
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
@@ -335,7 +301,7 @@
     currentHoveredElement.classList.remove('picker-hover');
     currentHoveredElement = parent;
     parent.classList.add('picker-hover');
-    updatePanel(parent);
+    sendElementInfo(parent);
   }
 
   function navigateChild() {
@@ -346,7 +312,7 @@
     currentHoveredElement.classList.remove('picker-hover');
     currentHoveredElement = child;
     child.classList.add('picker-hover');
-    updatePanel(child);
+    sendElementInfo(child);
   }
 
   function navigatePrevSibling() {
@@ -357,7 +323,7 @@
     currentHoveredElement.classList.remove('picker-hover');
     currentHoveredElement = prev;
     prev.classList.add('picker-hover');
-    updatePanel(prev);
+    sendElementInfo(prev);
   }
 
   function navigateNextSibling() {
@@ -368,7 +334,7 @@
     currentHoveredElement.classList.remove('picker-hover');
     currentHoveredElement = next;
     next.classList.add('picker-hover');
-    updatePanel(next);
+    sendElementInfo(next);
   }
 
   function collectPreviews(selector, maxCount) {
@@ -549,13 +515,8 @@
     document.addEventListener('keydown', handleKeyDown, true);
     window.addEventListener('beforeunload', handleBeforeUnload);
 
-    // Create panel
-    createPickerPanel();
-
-    // Inject styles if needed
     injectPickerStyles();
 
-    // Notify that picker is ready
     chrome.runtime.sendMessage({ action: 'pickerReady', step: currentStep });
   }
 
@@ -567,8 +528,6 @@
 
     isPickerActive = false;
 
-    console.log('Picker stopped');
-
     // Remove event listeners
     document.removeEventListener('mouseover', handleMouseOver, true);
     document.removeEventListener('mouseout', handleMouseOut, true);
@@ -576,30 +535,16 @@
     document.removeEventListener('keydown', handleKeyDown, true);
     window.removeEventListener('beforeunload', handleBeforeUnload);
 
-    // Clean up highlights
-    if (currentHoveredElement) {
-      currentHoveredElement.classList.remove('picker-hover');
-      currentHoveredElement = null;
-    }
-    if (selectedElement) {
-      selectedElement.classList.remove('picker-selected');
-      selectedElement = null;
-    }
-    if (firstItemElement) {
-      firstItemElement.classList.remove('picker-first-item');
-      firstItemElement = null;
-    }
+    document.querySelectorAll('.picker-hover, .picker-selected, .picker-first-item').forEach(el => {
+      el.classList.remove('picker-hover', 'picker-selected', 'picker-first-item');
+    });
+    currentHoveredElement = null;
+    selectedElement = null;
+    firstItemElement = null;
 
     const container = document.getElementById('picker-toast-container');
     if (container) container.remove();
 
-    // Remove panel
-    if (pickerPanel) {
-      pickerPanel.remove();
-      pickerPanel = null;
-    }
-
-    // Notify that picker is stopped
     chrome.runtime.sendMessage({ action: 'pickerStopped' });
   }
 
@@ -613,8 +558,10 @@
       .picker-hover { outline: 2px solid #4CAF50 !important; outline-offset: 2px !important; }
       .picker-selected { outline: 2px solid #2196F3 !important; outline-offset: 2px !important; }
       .picker-first-item { outline: 3px dashed #ff9800 !important; outline-offset: 3px !important; background: rgba(255,152,0,0.08) !important; }
-      .picker-panel { position: fixed !important; top: 20px !important; right: 20px !important; z-index: 2147483647 !important; background: #fff !important; border: 1px solid #e0e0e0 !important; border-radius: 8px !important; padding: 12px 16px !important; font-family: -apple-system, BlinkMacSystemFont, sans-serif !important; font-size: 14px !important; color: #333 !important; box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; min-width: 200px !important; }
-      .picker-panel-title { font-weight: 600 !important; margin-bottom: 8px !important; color: #222 !important; }
+      .picker-panel { position: fixed !important; top: 20px !important; right: 20px !important; z-index: 2147483647 !important; background: #fff !important; border: 1px solid #e0e0e0 !important; border-radius: 8px !important; font-family: -apple-system, BlinkMacSystemFont, sans-serif !important; font-size: 14px !important; color: #333 !important; box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; min-width: 200px !important; cursor: move !important; }
+      .picker-panel-content { padding: 12px 16px !important; }
+      .picker-panel-header { display: flex !important; align-items: center !important; justify-content: space-between !important; margin-bottom: 8px !important; }
+      .picker-panel-title { font-weight: 600 !important; color: #222 !important; }
       .picker-panel-info { color: #666 !important; font-size: 13px !important; line-height: 1.5 !important; }
       .picker-panel-shortcut { margin-top: 8px !important; padding-top: 8px !important; border-top: 1px solid #eee !important; font-size: 12px !important; color: #888 !important; }
       .picker-panel-shortcut kbd { background: #f5f5f5 !important; border: 1px solid #ddd !important; border-radius: 4px !important; padding: 2px 6px !important; font-family: monospace !important; font-size: 11px !important; }
@@ -641,21 +588,12 @@
 
     injectPickerStyles();
 
-    const panel = document.createElement('div');
-    panel.id = 'explore-collector-panel';
-    panel.className = 'picker-panel';
-    panel.innerHTML = `
-      <div class="picker-panel-title">收集发现页分类</div>
-      <div class="picker-panel-info">点击页面上的分类/排行链接<br>已收集: <span id="explore-count">0</span> 项</div>
-      <div class="picker-panel-shortcut">
-        <kbd>Esc</kbd> 完成收集
-      </div>
-    `;
-    document.body.appendChild(panel);
-    exploreCollectorPanel = panel;
-
     document.addEventListener('click', onExploreClick, true);
     document.addEventListener('keydown', onExploreKeydown, true);
+
+    chrome.runtime.sendMessage({
+      action: 'exploreCollectionStarted',
+    });
   }
 
   function onExploreClick(e) {
@@ -678,15 +616,20 @@
     }
 
     exploreCollectedItems.push({ title, url });
-    document.getElementById('explore-count').textContent = exploreCollectedItems.length;
     showToast(`已添加: ${title}`, 'info');
+
+    chrome.runtime.sendMessage({
+      action: 'exploreItemCollected',
+      item: { title, url },
+      total: exploreCollectedItems.length,
+    });
 
     el.classList.add('picker-selected');
     setTimeout(() => el.classList.remove('picker-selected'), 500);
   }
 
   function onExploreKeydown(e) {
-    if (e.key === 'Escape' && isExploreCollectorActive) {
+    if (e.key === 'Enter' && isExploreCollectorActive) {
       e.preventDefault();
       e.stopPropagation();
       finishExploreCollection();
@@ -698,23 +641,18 @@
     document.removeEventListener('click', onExploreClick, true);
     document.removeEventListener('keydown', onExploreKeydown, true);
 
-    if (exploreCollectorPanel) {
-      exploreCollectorPanel.remove();
-      exploreCollectorPanel = null;
-    }
-
     chrome.runtime.sendMessage({
       action: 'exploreCollected',
       items: exploreCollectedItems,
     });
 
-    showToast(`收集完成，共 ${exploreCollectedItems.length} 项`, 'info');
+    showToast(`已发送 ${exploreCollectedItems.length} 项到侧边栏`, 'info');
     exploreCollectedItems = [];
   }
 
   /**
-   * Handle incoming messages from popup
-   */
+    * Handle incoming messages from popup
+    */
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('Picker received message:', message);
 
@@ -726,6 +664,11 @@
 
       case 'startExploreCollector':
         startExploreCollector();
+        sendResponse({ success: true });
+        break;
+
+      case 'stopExploreCollector':
+        finishExploreCollection();
         sendResponse({ success: true });
         break;
 

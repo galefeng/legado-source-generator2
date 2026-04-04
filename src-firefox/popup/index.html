@@ -20,18 +20,18 @@
     <div class="rule-type-tabs" id="modeTabs"></div>
     <div class="rule-type-tabs" id="ruleTypeTabs"></div>
 
-    <!-- Explore URL Visual Editor -->
     <div id="exploreUrlEditor" class="explore-editor hidden">
       <div class="editor-toolbar">
-        <button id="exploreCollectBtn" class="btn btn-action">从页面收集元素</button>
-        <button id="exploreAddItemBtn" class="btn btn-action">手动添加</button>
-        <button id="exploreAddSeparatorBtn" class="btn btn-action">插入分隔</button>
-        <button id="exploreExportBtn" class="btn btn-action">导出 JSON</button>
+        <div class="toolbar-left">
+          <button id="exploreCollectBtn" class="btn btn-action">从页面收集元素</button>
+          <button id="exploreAddItemBtn" class="btn btn-action">手动添加</button>
+          <button id="exploreAddSeparatorBtn" class="btn btn-action">插入分隔</button>
+          <button id="exploreExportBtn" class="btn btn-action">导出 JSON</button>
+        </div>
+        <button id="exploreClearBtn" class="btn btn-action btn-clear">清空</button>
       </div>
       <div class="editor-layout">
-        <div class="editor-cards" id="exploreCards">
-          <!-- Cards rendered here -->
-        </div>
+        <div class="editor-cards" id="exploreCards"></div>
         <div class="editor-props" id="exploreProps">
           <div class="props-placeholder">选择卡片编辑样式</div>
         </div>
@@ -54,7 +54,14 @@
             <button class="format-btn" data-format="1">样式一</button>
           </div>
         </div>
-        <textarea id="exploreUrlPreview" placeholder="[{&quot;title&quot;:&quot;同人小说&quot;,&quot;url&quot;:&quot;...&quot;}]"></textarea>
+        <textarea id="exploreUrlPreview" placeholder="[{&quot;title&quot;:&quot;同人小说&quot;,&quot;url&quot;:&quot;...&quot;}]" readonly></textarea>
+        <div id="exploreCollectionIndicator" class="explore-collection-indicator hidden">
+          <div class="indicator-step" id="exploreIndicatorStep">-</div>
+          <div class="indicator-element" id="exploreIndicatorElement">-</div>
+          <div class="indicator-shortcuts">
+            <kbd>Enter</kbd> 完成收集
+          </div>
+        </div>
       </div>
     </div>
 
@@ -65,15 +72,30 @@
 
     <main class="form-area">
       <div id="fieldContainer"></div>
+      <div id="pickerStatusContainer" class="picker-status-container hidden">
+        <div class="picker-status-step" id="pickerStatusStep">-</div>
+        <div class="picker-status-element" id="pickerStatusElement">-</div>
+        <div class="picker-status-shortcuts">
+          <kbd>Esc</kbd> 取消 &nbsp; <kbd>↑↓←→</kbd> 导航 &nbsp; <kbd>Enter</kbd> 确认
+        </div>
+      </div>
+      <div id="exploreCollectionStatus" class="explore-collection-status hidden">
+        <div class="status-text">
+          <span class="status-icon">●</span>
+          <span id="exploreStatusMessage">收集中...</span>
+        </div>
+        <div class="status-count">已收集: <span id="exploreCountDisplay">0</span> 项</div>
+        <button id="exploreStopCollectBtn" class="btn btn-action btn-stop-collect">停止收集</button>
+      </div>
     </main>
 
     <footer class="footer">
-      <div class="nav-buttons">
+      <div class="nav-buttons" id="navButtons">
         <button id="prevBtn" class="btn btn-secondary" disabled>上一步</button>
         <button id="nextBtn" class="btn btn-primary">下一步</button>
       </div>
       <button id="exportBtn" class="btn btn-success">导出 JSON</button>
-      <button id="resetBtn" class="btn btn-danger">重置</button>
+      <button id="resetBtn" class="btn btn-danger">重置所有</button>
     </footer>
 
     <div id="exportModal" class="modal hidden">

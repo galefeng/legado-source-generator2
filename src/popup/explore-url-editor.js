@@ -9,6 +9,7 @@ const EXPLORE_PROPS = [
 let exploreItems = [];
 let selectedCardIndex = -1;
 let exploreFormat = 2;
+let isCollecting = false;
 
 function initExploreEditor() {
   bindExploreEvents();
@@ -19,6 +20,9 @@ function bindExploreEvents() {
   const collectBtn = document.getElementById('exploreCollectBtn');
   if (collectBtn) collectBtn.addEventListener('click', startExploreCollection);
 
+  const stopBtn = document.getElementById('exploreStopCollectBtn');
+  if (stopBtn) stopBtn.addEventListener('click', stopExploreCollection);
+
   const addItemBtn = document.getElementById('exploreAddItemBtn');
   if (addItemBtn) addItemBtn.addEventListener('click', () => addExploreItem({ title: '新分类', url: '' }));
 
@@ -27,6 +31,12 @@ function bindExploreEvents() {
 
   const exportBtn = document.getElementById('exploreExportBtn');
   if (exportBtn) exportBtn.addEventListener('click', exportExploreJson);
+
+  const clearBtn = document.getElementById('exploreClearBtn');
+  if (clearBtn) clearBtn.addEventListener('click', () => {
+    if (exploreItems.length && !confirm('确定要清空所有发现页URL吗？')) return;
+    window.clearExploreEditor();
+  });
 
   const copyBtn = document.getElementById('exploreCopyBtn');
   if (copyBtn) copyBtn.addEventListener('click', () => {
@@ -42,6 +52,93 @@ function bindExploreEvents() {
   bindExplorePreviewInput();
   bindFormatToggle();
 }
+
+function updateCollectionStatus(active, count = 0) {
+  isCollecting = active;
+  const statusEl = document.getElementById('exploreCollectionStatus');
+  const countDisplay = document.getElementById('exploreCountDisplay');
+  const collectBtn = document.getElementById('exploreCollectBtn');
+  const indicatorEl = document.getElementById('exploreCollectionIndicator');
+
+  if (active) {
+    if (statusEl) statusEl.classList.remove('hidden');
+    if (indicatorEl) indicatorEl.classList.remove('hidden');
+    if (countDisplay) countDisplay.textContent = count;
+    if (collectBtn) collectBtn.disabled = true;
+  } else {
+    if (statusEl) statusEl.classList.add('hidden');
+    if (indicatorEl) indicatorEl.classList.add('hidden');
+    if (collectBtn) collectBtn.disabled = false;
+  }
+}
+
+function updateExploreCollectionIndicator(step, elementInfo, elementText) {
+  const indicatorEl = document.getElementById('exploreCollectionIndicator');
+  const stepEl = document.getElementById('exploreIndicatorStep');
+  const elementEl = document.getElementById('exploreIndicatorElement');
+  if (!indicatorEl || indicatorEl.classList.contains('hidden')) return;
+  if (stepEl) stepEl.textContent = step || '-';
+  if (elementEl) elementEl.textContent = elementInfo ? `${elementInfo} ${elementText || ''}` : '-';
+}
+
+function startExploreCollection() {
+  if (isCollecting) return;
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (!tabs[0]) return;
+    const tabId = tabs[0].id;
+    chrome.tabs.sendMessage(tabId, { action: 'startExploreCollector' }, (response) => {
+      if (chrome.runtime.lastError) {
+        chrome.scripting.executeScript({
+          target: { tabId },
+          files: ['content/picker.js'],
+        }).then(() => {
+          chrome.scripting.insertCSS({
+            target: { tabId },
+            files: ['content/picker.css'],
+          });
+          setTimeout(() => {
+            chrome.tabs.sendMessage(tabId, { action: 'startExploreCollector' });
+          }, 200);
+        });
+      }
+    });
+  });
+}
+
+function stopExploreCollection() {
+  if (!isCollecting) return;
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (!tabs[0]) return;
+    chrome.tabs.sendMessage(tabs[0].id, { action: 'stopExploreCollector' });
+    finishCollection();
+  });
+}
+
+function finishCollection() {
+  isCollecting = false;
+  updateCollectionStatus(false);
+}
+
+window.handleExploreCollected = function(items) {
+  items.forEach(item => {
+    addExploreItem({ title: item.title, url: item.url });
+  });
+  updateExploreUrlPreview();
+  finishCollection();
+};
+
+window.handleExploreItemCollected = function(item, total) {
+  updateCollectionStatus(true, total);
+  updateExploreCollectionIndicator('收集中', `<a>`, item.title);
+};
+
+window.handleExploreCollectionStarted = function() {
+  updateCollectionStatus(true, 0);
+};
+
+window.handleExploreElementHover = function(message) {
+  updateExploreCollectionIndicator('收集中', message.elementInfo, message.elementText);
+};
 
 function loadExploreState() {
   chrome.storage.local.get(['exploreEditorState'], (result) => {
@@ -91,36 +188,6 @@ function removeExploreItem(index) {
   renderPropsPanel();
   updateExploreUrlPreview();
 }
-
-function startExploreCollection() {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (!tabs[0]) return;
-    const tabId = tabs[0].id;
-    chrome.tabs.sendMessage(tabId, { action: 'startExploreCollector' }, (response) => {
-      if (chrome.runtime.lastError) {
-        chrome.scripting.executeScript({
-          target: { tabId },
-          files: ['content/picker.js'],
-        }).then(() => {
-          chrome.scripting.insertCSS({
-            target: { tabId },
-            files: ['content/picker.css'],
-          });
-          setTimeout(() => {
-            chrome.tabs.sendMessage(tabId, { action: 'startExploreCollector' });
-          }, 200);
-        });
-      }
-    });
-  });
-}
-
-window.handleExploreCollected = function(items) {
-  items.forEach(item => {
-    addExploreItem({ title: item.title, url: item.url });
-  });
-  updateExploreUrlPreview();
-};
 
 function renderExploreCards() {
   const container = document.getElementById('exploreCards');
@@ -362,6 +429,10 @@ function itemsToExploreUrl(items) {
 function updateExploreUrlPreview() {
   const textarea = document.getElementById('exploreUrlPreview');
   if (!textarea) return;
+  if (!exploreItems.length) {
+    textarea.value = '';
+    return;
+  }
   textarea.value = exploreFormat === 1
     ? itemsToExploreUrlFormat1(exploreItems)
     : JSON.stringify(itemsToExploreJson(exploreItems), null, 2);
