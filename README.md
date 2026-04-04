@@ -6,7 +6,7 @@
 
 ## 演示视频
 
-[![阅读书源生成插件演示](https://socialify.git.ci/z1131392774/legado-source-generator/image?description=1&font=Inter&language=1&name=1&owner=1&theme=Auto)](https://www.bilibili.com/video/BV1qz9TB7EJ4/)
+[![阅读书源生成插件演示](https://socialify.git.ci/z1131392774/legado-source-generator/image?description=1&font=Inter&language=1&name=1&owner=1&theme=Auto)](https://www.bilibili.com/video/BV1jQDKBzEBK/)
 
 > 👆 点击观看完整演示视频
 
