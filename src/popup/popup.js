@@ -152,6 +152,11 @@ function loadState() {
       document.getElementById('bookSourceName').value = state.bookSourceName || '';
       document.getElementById('bookSourceUrl').value = state.bookSourceUrl || '';
       document.getElementById('searchUrl').value = state.searchUrl || '';
+      setTimeout(() => {
+        autoResizeTextarea(document.getElementById('bookSourceName'));
+        autoResizeTextarea(document.getElementById('bookSourceUrl'));
+        autoResizeTextarea(document.getElementById('searchUrl'));
+      }, 0);
     }
     renderModeTabs();
     renderRuleTypeTabs();
@@ -250,8 +255,8 @@ function renderFields() {
     <div class="field-item">
       <label>${field.label}${field.required ? ' <span class="required">*</span>' : ''}</label>
       <div class="field-value">
-        <input type="text" id="fieldValue" class="input-field" value="${escapeHtml(value)}"
-          placeholder="请输入或选择" ${isManual ? '' : 'readonly'}>
+        <textarea id="fieldValue" class="input-field" rows="1"
+          placeholder="请输入或选择" ${isManual ? '' : 'readonly'}>${escapeHtml(value)}</textarea>
       </div>
       <div class="field-actions">
         <button id="selectBtn" class="btn btn-action" ${fieldState === 'picking' ? 'disabled' : ''}>
@@ -311,7 +316,10 @@ function bindFieldEvents() {
   const manualBtn = document.getElementById('manualBtn');
   if (manualBtn) manualBtn.addEventListener('click', handleManualInput);
   const fieldValue = document.getElementById('fieldValue');
-  if (fieldValue) fieldValue.addEventListener('input', handleFieldInput);
+  if (fieldValue) {
+    fieldValue.addEventListener('input', handleFieldInput);
+    autoResizeTextarea(fieldValue);
+  }
   const indexStart = document.getElementById('indexStart');
   if (indexStart) indexStart.addEventListener('input', handleIndexInput);
   const indexEnd = document.getElementById('indexEnd');
@@ -695,6 +703,22 @@ function bindEvents() {
   document.getElementById('bookSourceName').addEventListener('input', saveState);
   document.getElementById('bookSourceUrl').addEventListener('input', saveState);
   document.getElementById('searchUrl').addEventListener('input', saveState);
+
+  autoResizeTextarea(document.getElementById('bookSourceName'));
+  autoResizeTextarea(document.getElementById('bookSourceUrl'));
+  autoResizeTextarea(document.getElementById('searchUrl'));
+}
+
+function autoResizeTextarea(el) {
+  if (!el) return;
+  const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 19;
+  const maxHeight = lineHeight * 10;
+  const resize = () => {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, maxHeight) + 'px';
+  };
+  el.addEventListener('input', resize);
+  resize();
 }
 
 function handleNext() {

@@ -337,11 +337,11 @@ function renderPropsPanel() {
     <div class="props-form">
       <label>
         <span>标题</span>
-        <input type="text" id="propTitle" value="${escapeHtml(item.title)}">
+        <textarea id="propTitle" rows="2">${escapeHtml(item.title)}</textarea>
       </label>
       <label>
         <span>URL</span>
-        <input type="text" id="propUrl" value="${escapeHtml(item.url)}" ${item.isSeparator ? 'readonly placeholder="分隔项无URL"' : ''}>
+        <textarea id="propUrl" rows="2" ${item.isSeparator ? 'readonly placeholder="分隔项无URL"' : ''}>${escapeHtml(item.url)}</textarea>
       </label>
       <div class="prop-row">
         <span class="prop-label">layout_flexGrow</span>
@@ -391,6 +391,20 @@ function renderPropsPanel() {
   bind('propAlignSelf', 'layout_alignSelf', el => el.value);
   bind('propFlexBasisPercent', 'layout_flexBasisPercent', el => parseFloat(el.value) ?? -1);
   bind('propWrapBefore', 'layout_wrapBefore', el => el.checked);
+
+  const propTitle = document.getElementById('propTitle');
+  const propUrl = document.getElementById('propUrl');
+  if (propTitle) autoResize(propTitle);
+  if (propUrl) autoResize(propUrl);
+}
+
+function autoResize(el) {
+  const resize = () => {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  };
+  el.addEventListener('input', resize);
+  resize();
 }
 
 function exportExploreJson() {
@@ -431,11 +445,22 @@ function updateExploreUrlPreview() {
   if (!textarea) return;
   if (!exploreItems.length) {
     textarea.value = '';
+    textarea.style.height = 'auto';
     return;
   }
   textarea.value = exploreFormat === 1
     ? itemsToExploreUrlFormat1(exploreItems)
     : JSON.stringify(itemsToExploreJson(exploreItems), null, 2);
+  autoResizePreview();
+}
+
+function autoResizePreview() {
+  const textarea = document.getElementById('exploreUrlPreview');
+  if (!textarea) return;
+  const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 19;
+  const maxHeight = lineHeight * 10;
+  textarea.style.height = 'auto';
+  textarea.style.height = Math.min(textarea.scrollHeight, maxHeight) + 'px';
 }
 
 function itemsToExploreUrlFormat1(items) {

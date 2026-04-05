@@ -240,6 +240,20 @@ body {
   cursor: default;
 }
 
+.input-name,
+.input-url,
+.input-field {
+  resize: vertical;
+  min-height: 32px;
+  line-height: 1.4;
+  font-family: var(--mono);
+}
+
+.input-name,
+.input-url {
+  font-family: inherit;
+}
+
 .field-actions {
   display: flex;
   gap: 6px;
@@ -933,7 +947,7 @@ body {
 /* ── Properties Panel ──────────────────── */
 
 .explore-editor .editor-props {
-  width: 200px;
+  width: 300px;
   flex-shrink: 0;
   padding: 8px;
   background: var(--bg-surface);
@@ -972,7 +986,8 @@ body {
   color: var(--text);
 }
 
-.explore-editor .editor-props .props-form input {
+.explore-editor .editor-props .props-form input,
+.explore-editor .editor-props .props-form textarea {
   padding: 4px 6px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -980,9 +995,13 @@ body {
   font-family: var(--mono);
   background: var(--bg);
   color: var(--text);
+  resize: vertical;
+  min-height: 28px;
+  line-height: 1.4;
 }
 
-.explore-editor .editor-props .props-form input:focus {
+.explore-editor .editor-props .props-form input:focus,
+.explore-editor .editor-props .props-form textarea:focus {
   outline: none;
   border-color: var(--border-focus);
   box-shadow: 0 0 0 2px var(--accent-dim);

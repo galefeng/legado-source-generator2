@@ -11,9 +11,9 @@
     <header class="header">
       <h1>Legado 书源生成器</h1>
       <div class="header-meta">
-        <input type="text" id="bookSourceName" placeholder="书源名称" class="input-name">
-        <input type="text" id="bookSourceUrl" placeholder="书源网站URL" class="input-url">
-        <input type="text" id="searchUrl" placeholder="搜索页URL (如: {{key}})" class="input-url">
+        <textarea id="bookSourceName" placeholder="书源名称" class="input-name" rows="1"></textarea>
+        <textarea id="bookSourceUrl" placeholder="书源网站URL" class="input-url" rows="1"></textarea>
+        <textarea id="searchUrl" placeholder="搜索页URL (如: {{key}})" class="input-url" rows="1"></textarea>
       </div>
     </header>
 
@@ -54,7 +54,7 @@
             <button class="format-btn" data-format="1">样式一</button>
           </div>
         </div>
-        <textarea id="exploreUrlPreview" placeholder="[{&quot;title&quot;:&quot;同人小说&quot;,&quot;url&quot;:&quot;...&quot;}]" readonly></textarea>
+        <textarea id="exploreUrlPreview" rows="1" placeholder="[{&quot;title&quot;:&quot;同人小说&quot;,&quot;url&quot;:&quot;...&quot;}]" readonly></textarea>
         <div id="exploreCollectionIndicator" class="explore-collection-indicator hidden">
           <div class="indicator-step" id="exploreIndicatorStep">-</div>
           <div class="indicator-element" id="exploreIndicatorElement">-</div>
