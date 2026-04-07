@@ -9,7 +9,13 @@
 <body>
   <div id="app">
     <header class="header">
-      <h1>Legado 书源生成器</h1>
+      <div class="header-top">
+        <h1>Legado 书源生成器</h1>
+        <div class="header-actions">
+          <button id="autoFillBtn" class="btn btn-icon" title="自动填充当前页面信息">📋 自动填充</button>
+          <button id="checkUpdateBtn" class="btn btn-icon" title="检查更新">🔄 检查更新</button>
+        </div>
+      </div>
       <div class="header-meta">
         <textarea id="bookSourceName" placeholder="书源名称" class="input-name" rows="1"></textarea>
         <textarea id="bookSourceUrl" placeholder="书源网站URL" class="input-url" rows="1"></textarea>
@@ -106,6 +112,24 @@
           <button id="copyBtn" class="btn btn-primary">复制到剪贴板</button>
           <button id="downloadBtn" class="btn btn-success">下载 JSON</button>
           <button id="closeModalBtn" class="btn btn-secondary">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="updateModal" class="modal hidden">
+      <div class="modal-content">
+        <h3>检查更新</h3>
+        <div class="update-info">
+          <p>当前版本: <strong id="currentVersion">-</strong></p>
+          <p>最新版本: <strong id="latestVersion">检查中...</strong></p>
+          <p id="updateStatus"></p>
+        </div>
+        <div class="update-links">
+          <a href="https://github.com/z1131392774/legado-source-generator" target="_blank" rel="noopener">GitHub 仓库</a>
+          <a href="https://gitee.com/z1131392774/legado-source-generator" target="_blank" rel="noopener">Gitee 仓库</a>
+        </div>
+        <div class="modal-actions">
+          <button id="closeUpdateBtn" class="btn btn-primary">关闭</button>
         </div>
       </div>
     </div>

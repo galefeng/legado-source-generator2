@@ -707,6 +707,62 @@ function bindEvents() {
   autoResizeTextarea(document.getElementById('bookSourceName'));
   autoResizeTextarea(document.getElementById('bookSourceUrl'));
   autoResizeTextarea(document.getElementById('searchUrl'));
+
+  document.getElementById('autoFillBtn').addEventListener('click', handleAutoFill);
+  document.getElementById('checkUpdateBtn').addEventListener('click', handleCheckUpdate);
+  document.getElementById('closeUpdateBtn').addEventListener('click', () => {
+    document.getElementById('updateModal').classList.add('hidden');
+  });
+}
+
+function handleAutoFill() {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (!tabs[0]) return;
+    const tab = tabs[0];
+    const nameEl = document.getElementById('bookSourceName');
+    const urlEl = document.getElementById('bookSourceUrl');
+
+    if (nameEl) nameEl.value = tab.title || '';
+    if (urlEl) {
+      try {
+        const url = new URL(tab.url);
+        urlEl.value = url.origin;
+      } catch {
+        urlEl.value = tab.url || '';
+      }
+    }
+
+    autoResizeTextarea(nameEl);
+    autoResizeTextarea(urlEl);
+    saveState();
+  });
+}
+
+function handleCheckUpdate() {
+  const modal = document.getElementById('updateModal');
+  const currentEl = document.getElementById('currentVersion');
+  const latestEl = document.getElementById('latestVersion');
+  const statusEl = document.getElementById('updateStatus');
+
+  modal.classList.remove('hidden');
+  currentEl.textContent = chrome.runtime.getManifest().version;
+  latestEl.textContent = '检查中...';
+  statusEl.textContent = '';
+
+  fetch('https://gitee.com/api/v5/repos/z1131392774/legado-source-generator/releases/latest')
+    .then(res => {
+      if (!res.ok) throw new Error('Network error');
+      return res.json();
+    })
+    .then(data => {
+      const latest = data.tag_name.replace(/^v/, '');
+      latestEl.textContent = latest;
+    })
+    .catch(() => {
+      latestEl.textContent = '检查失败';
+      statusEl.textContent = '请检查网络连接或手动访问仓库查看';
+      statusEl.style.color = 'var(--danger)';
+    });
 }
 
 function autoResizeTextarea(el) {
