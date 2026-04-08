@@ -650,7 +650,7 @@ function updateExploreUrlPreview() {
   textarea.value = exploreFormat === 1
     ? itemsToExploreUrlFormat1(exploreItems)
     : JSON.stringify(itemsToExploreJson(exploreItems), null, 2);
-  autoResizePreview();
+  setTimeout(() => autoResizePreview(), 0);
 }
 
 function autoResizePreview() {
