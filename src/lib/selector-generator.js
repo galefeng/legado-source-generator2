@@ -13,7 +13,7 @@ const DEFAULT_BLACKLIST = [
   /^[0-9]+$/,
 ];
 
-const DEFAULT_PRIORITY = ['id', 'class', 'tagClass', 'nthChild'];
+const DEFAULT_PRIORITY = ['id', 'class', 'tagClass'];
 
 // Common utility CSS class prefixes that are too generic to be useful
 const UTILITY_PREFIXES = [
@@ -185,35 +185,21 @@ function getTagClassSelector(element, blacklist, preferReusable) {
   return null;
 }
 
-function getNthChildPath(element, root) {
+function getTagPath(element, root) {
   const path = [];
   let current = element;
 
   while (current && current !== root && current !== document.body) {
-    const parent = current.parentElement;
-    if (!parent) break;
-
-    const children = Array.from(parent.children);
     const tagName = current.tagName.toLowerCase();
-    const sameTagSiblings = children.filter(child => child.tagName === current.tagName);
-
-    let index;
-    if (sameTagSiblings.length > 1) {
-      index = sameTagSiblings.indexOf(current) + 1;
-      path.unshift({ tag: tagName, index, sameTag: true });
-    } else {
-      index = children.indexOf(current) + 1;
-      path.unshift({ tag: tagName, index, sameTag: false });
-    }
-
-    current = parent;
+    path.unshift({ tag: tagName });
+    current = current.parentElement;
   }
 
   return path;
 }
 
-function buildNthChildPathSelector(path) {
-  return path.map(p => `${p.tag}:nth-child(${p.index})`).join(' > ');
+function buildTagPathSelector(path) {
+  return path.map(p => p.tag).join(' > ');
 }
 
 function getCssSelector(element, options = {}) {
@@ -243,8 +229,6 @@ function getCssSelector(element, options = {}) {
       case 'tagClass':
         selector = getTagClassSelector(element, blacklist, preferReusable);
         break;
-      case 'nthChild':
-        break;
       default:
         continue;
     }
@@ -264,12 +248,13 @@ function getCssSelector(element, options = {}) {
     }
   }
 
-  // Fallback: try finding an anchored parent before nth-child
+  // Fallback 1: try anchored selector
   const anchored = getAnchoredSelector(element, root, blacklist);
   if (anchored) return anchored;
 
-  const path = getNthChildPath(element, root);
-  return buildNthChildPathSelector(path);
+  // Fallback 2: pure tag path (no nth-child), e.g. dd > h3 > a
+  const path = getTagPath(element, root);
+  return buildTagPathSelector(path);
 }
 
 function getAnchoredSelector(element, root, blacklist) {
@@ -287,14 +272,9 @@ function getAnchoredSelector(element, root, blacklist) {
   const path = [];
   current = element;
   while (current && current !== anchor) {
-    const parent = current.parentElement;
-    if (!parent) return null;
-    const children = Array.from(parent.children);
     const tag = current.tagName.toLowerCase();
-    const sameTag = children.filter(c => c.tagName === current.tagName);
-    const idx = sameTag.length > 1 ? sameTag.indexOf(current) + 1 : children.indexOf(current) + 1;
-    path.unshift({ tag, index: idx });
-    current = parent;
+    path.unshift({ tag });
+    current = current.parentElement;
   }
 
   const anchorTag = anchor.tagName.toLowerCase();
@@ -303,9 +283,7 @@ function getAnchoredSelector(element, root, blacklist) {
   const anchorClassStr = anchorClasses.map(c => `.${c.replace(/[^\w-]/g, '\\$&')}`).join('');
   const anchorSelector = `${anchorTag}${anchorId}${anchorClassStr}`;
 
-  const childPath = path.map(p =>
-    p.index > 1 ? `${p.tag}:nth-child(${p.index})` : p.tag
-  ).join(' > ');
+  const childPath = path.map(p => p.tag).join(' > ');
 
   const fullSelector = childPath ? `${anchorSelector} > ${childPath}` : anchorSelector;
 
