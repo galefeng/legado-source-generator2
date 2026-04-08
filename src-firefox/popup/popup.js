@@ -151,7 +151,6 @@ function loadState() {
       state = { ...state, ...result.legadoSourceState };
       document.getElementById('bookSourceName').value = state.bookSourceName || '';
       document.getElementById('bookSourceUrl').value = state.bookSourceUrl || '';
-      document.getElementById('exploreUrl').value = state.exploreUrl || '';
       document.getElementById('searchUrl').value = state.searchUrl || '';
       setTimeout(() => {
         autoResizeTextarea(document.getElementById('bookSourceName'));
@@ -172,9 +171,19 @@ function loadState() {
 function saveState() {
   state.bookSourceName = document.getElementById('bookSourceName').value;
   state.bookSourceUrl = document.getElementById('bookSourceUrl').value;
-  state.exploreUrl = document.getElementById('exploreUrl').value;
   state.searchUrl = document.getElementById('searchUrl').value;
   chrome.storage.local.set({ legadoSourceState: state });
+}
+
+function buildJsRule(body, returnsList = false) {
+  const catchReturnExpr = returnsList ? '[""+e]' : '""+e';
+  return `<js>(function(result){
+    try{
+${body}
+    }catch(e){
+      return ${catchReturnExpr};
+    }
+})(result)</js>`;
 }
 
 function renderRuleTypeTabs() {
@@ -480,7 +489,6 @@ function handleClearField() {
   const listFields = ['bookList', 'chapterList'];
   if (listFields.includes(field.key)) {
     rule.bookListSelector = null;
-    rule.listIndex = { start: '', end: '' };
   }
 
   saveState();
@@ -533,8 +541,7 @@ function handleIndexApply() {
 
     if (startVal > 1 || endVal > 0 || endVal < -1) {
       const s = startVal > 1 ? startVal - 1 : 0;
-      jsCode = `<js>(function(result){
-        var doc = org.jsoup.Jsoup.parse(result);
+      jsCode = buildJsRule(`        var doc = org.jsoup.Jsoup.parse(result);
         var list = doc.select("${baseSelector}");
         var start = ${s};
         var end = ${endExpr};
@@ -542,14 +549,11 @@ function handleIndexApply() {
         for (var i = start; i < end; i++) {
           result.add(list.get(i));
         }
-        return result;
-      })(result)</js>`;
+        return result;`, true);
     } else {
-      jsCode = `<js>(function(result){
-        var doc = org.jsoup.Jsoup.parse(result);
+      jsCode = buildJsRule(`        var doc = org.jsoup.Jsoup.parse(result);
         var list = doc.select("${baseSelector}");
-        return list;
-      })(result)</js>`;
+        return list;`, true);
     }
 
     rule.fields[field.key].value = jsCode;
@@ -568,12 +572,10 @@ function handleIndexApply() {
         returnExpr = `String(list.get(${index}).text())`;
       }
 
-      jsCode = `<js>(function(result){
-    var doc = org.jsoup.Jsoup.parse(result);
+      jsCode = buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
     var list = doc.select("${baseSelector}");
     var index = ${index};
-    return ${returnExpr};
-})(result)</js>`;
+    return ${returnExpr};`);
     } else {
       let returnExpr;
       if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) {
@@ -584,11 +586,9 @@ function handleIndexApply() {
         returnExpr = 'String(list.text())';
       }
 
-      jsCode = `<js>(function(result){
-    var doc = org.jsoup.Jsoup.parse(result);
+      jsCode = buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
     var list = doc.select("${baseSelector}");
-    return ${returnExpr};
-})(result)</js>`;
+    return ${returnExpr};`);
     }
 
     rule.fields[field.key].value = jsCode;
@@ -705,7 +705,6 @@ function bindEvents() {
 
   document.getElementById('bookSourceName').addEventListener('input', saveState);
   document.getElementById('bookSourceUrl').addEventListener('input', saveState);
-  document.getElementById('exploreUrl').addEventListener('input', saveState);
   document.getElementById('searchUrl').addEventListener('input', saveState);
 
   autoResizeTextarea(document.getElementById('bookSourceName'));
@@ -995,11 +994,9 @@ function toLegadoRule(selector, fieldKey) {
     returnExpr = 'String(list.text())';
   }
 
-  return `<js>(function(result){
-    var doc = org.jsoup.Jsoup.parse(result);
+  return buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
     var list = doc.select("${selector}");
-    return ${returnExpr};
-})(result)</js>`;
+    return ${returnExpr};`);
 }
 
 function handleSelectorSelected(message) {

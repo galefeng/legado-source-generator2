@@ -175,6 +175,17 @@ function saveState() {
   chrome.storage.local.set({ legadoSourceState: state });
 }
 
+function buildJsRule(body, returnsList = false) {
+  const catchReturnExpr = returnsList ? '[""+e]' : '""+e';
+  return `<js>(function(result){
+    try{
+${body}
+    }catch(e){
+      return ${catchReturnExpr};
+    }
+})(result)</js>`;
+}
+
 function renderRuleTypeTabs() {
   const container = document.getElementById('ruleTypeTabs');
   if (!container) return;
@@ -530,8 +541,7 @@ function handleIndexApply() {
 
     if (startVal > 1 || endVal > 0 || endVal < -1) {
       const s = startVal > 1 ? startVal - 1 : 0;
-      jsCode = `<js>(function(result){
-        var doc = org.jsoup.Jsoup.parse(result);
+      jsCode = buildJsRule(`        var doc = org.jsoup.Jsoup.parse(result);
         var list = doc.select("${baseSelector}");
         var start = ${s};
         var end = ${endExpr};
@@ -539,14 +549,11 @@ function handleIndexApply() {
         for (var i = start; i < end; i++) {
           result.add(list.get(i));
         }
-        return result;
-      })(result)</js>`;
+        return result;`, true);
     } else {
-      jsCode = `<js>(function(result){
-        var doc = org.jsoup.Jsoup.parse(result);
+      jsCode = buildJsRule(`        var doc = org.jsoup.Jsoup.parse(result);
         var list = doc.select("${baseSelector}");
-        return list;
-      })(result)</js>`;
+        return list;`, true);
     }
 
     rule.fields[field.key].value = jsCode;
@@ -565,12 +572,10 @@ function handleIndexApply() {
         returnExpr = `String(list.get(${index}).text())`;
       }
 
-      jsCode = `<js>(function(result){
-    var doc = org.jsoup.Jsoup.parse(result);
+      jsCode = buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
     var list = doc.select("${baseSelector}");
     var index = ${index};
-    return ${returnExpr};
-})(result)</js>`;
+    return ${returnExpr};`);
     } else {
       let returnExpr;
       if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) {
@@ -581,11 +586,9 @@ function handleIndexApply() {
         returnExpr = 'String(list.text())';
       }
 
-      jsCode = `<js>(function(result){
-    var doc = org.jsoup.Jsoup.parse(result);
+      jsCode = buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
     var list = doc.select("${baseSelector}");
-    return ${returnExpr};
-})(result)</js>`;
+    return ${returnExpr};`);
     }
 
     rule.fields[field.key].value = jsCode;
@@ -991,11 +994,9 @@ function toLegadoRule(selector, fieldKey) {
     returnExpr = 'String(list.text())';
   }
 
-  return `<js>(function(result){
-    var doc = org.jsoup.Jsoup.parse(result);
+  return buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
     var list = doc.select("${selector}");
-    return ${returnExpr};
-})(result)</js>`;
+    return ${returnExpr};`);
 }
 
 function handleSelectorSelected(message) {
