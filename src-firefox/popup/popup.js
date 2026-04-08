@@ -749,24 +749,85 @@ function handleCheckUpdate() {
   const statusEl = document.getElementById('updateStatus');
 
   modal.classList.remove('hidden');
-  currentEl.textContent = chrome.runtime.getManifest().version;
+  const currentVersion = chrome.runtime.getManifest().version;
+  currentEl.textContent = currentVersion;
   latestEl.textContent = '检查中...';
   statusEl.textContent = '';
 
-  fetch('https://gitee.com/api/v5/repos/z1131392774/legado-source-generator/releases/latest')
-    .then(res => {
-      if (!res.ok) throw new Error('Network error');
-      return res.json();
-    })
-    .then(data => {
-      const latest = data.tag_name.replace(/^v/, '');
+  getLatestVersionWithFallback()
+    .then(latest => {
       latestEl.textContent = latest;
+      const compareResult = compareVersions(latest, currentVersion);
+
+      if (compareResult > 0) {
+        statusEl.textContent = '发现新版本';
+        statusEl.style.color = 'var(--success)';
+      } else {
+        statusEl.textContent = '已是最新版本';
+        statusEl.style.color = '';
+      }
     })
     .catch(() => {
       latestEl.textContent = '检查失败';
       statusEl.textContent = '请检查网络连接或手动访问仓库查看';
       statusEl.style.color = 'var(--danger)';
     });
+}
+
+async function getLatestVersionWithFallback() {
+  try {
+    return await fetchLatestTagFromGitee();
+  } catch {
+    return fetchLatestTagFromGitHub();
+  }
+}
+
+function fetchLatestTagFromGitee() {
+  return fetchLatestTagVersion('https://gitee.com/api/v5/repos/z1131392774/legado-source-generator/tags', 'name');
+}
+
+function fetchLatestTagFromGitHub() {
+  return fetchLatestTagVersion('https://api.github.com/repos/z1131392774/legado-source-generator/tags', 'name');
+}
+
+async function fetchLatestTagVersion(url, fieldName) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Network error');
+
+  const data = await res.json();
+  if (!Array.isArray(data) || data.length === 0) throw new Error('No tags found');
+
+  const versions = data
+    .map(item => normalizeTagVersion(item?.[fieldName]))
+    .filter(Boolean);
+
+  if (!versions.length) throw new Error('No valid semver tag found');
+
+  return versions.reduce((latest, current) => {
+    if (!latest) return current;
+    return compareVersions(current, latest) > 0 ? current : latest;
+  }, '');
+}
+
+function normalizeTagVersion(tagName) {
+  if (typeof tagName !== 'string') return '';
+  const version = tagName.trim().replace(/^v/i, '');
+  return /^\d+(\.\d+){1,3}$/.test(version) ? version : '';
+}
+
+function compareVersions(a, b) {
+  const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
+  const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
+  const length = Math.max(pa.length, pb.length);
+
+  for (let i = 0; i < length; i += 1) {
+    const na = pa[i] || 0;
+    const nb = pb[i] || 0;
+    if (na > nb) return 1;
+    if (na < nb) return -1;
+  }
+
+  return 0;
 }
 
 function autoResizeTextarea(el) {

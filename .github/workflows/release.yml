@@ -40,12 +40,32 @@ jobs:
           (cd src && zip -r "../dist/legado-source-generator-chrome-v${VERSION}.zip" . -x "*.DS_Store")
           (cd src-firefox && zip -r "../dist/legado-source-generator-firefox-v${VERSION}.zip" . -x "*.DS_Store" "web-ext-artifacts/*")
 
+      - name: Generate release notes
+        run: |
+          PREV_TAG=$(git for-each-ref --sort=-version:refname --format='%(refname:short)' refs/tags | while read -r tag; do
+            if [ "$tag" != "v${VERSION}" ]; then
+              printf '%s' "$tag"
+              break
+            fi
+          done)
+
+          {
+            printf '## 本次更新\n\n'
+            if [ -n "$PREV_TAG" ]; then
+              git log --no-merges --pretty='- %s' "${PREV_TAG}..v${VERSION}"
+              printf '\n'
+              printf 'Full Changelog: https://github.com/%s/compare/%s...v%s\n' "$GITHUB_REPOSITORY" "$PREV_TAG" "$VERSION"
+            else
+              git log --no-merges --pretty='- %s'
+            fi
+          } > release_notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: v${{ env.VERSION }}
           tag_name: v${{ env.VERSION }}
-          generate_release_notes: true
+          body_path: release_notes.md
           files: |
             dist/legado-source-generator-chrome-v${{ env.VERSION }}.zip
             dist/legado-source-generator-firefox-v${{ env.VERSION }}.zip
