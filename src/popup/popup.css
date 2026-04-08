@@ -799,6 +799,153 @@ body {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.explore-editor .editor-toolbar .toolbar-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.explore-editor .editor-toolbar .toolbar-batch {
+  padding-top: 4px;
+  border-top: 1px dashed var(--border);
+}
+
+.batch-check-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.batch-select {
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  padding: 0 6px;
+}
+
+.batch-count {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.toolbar-batch .btn.disabled,
+.toolbar-batch .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+
+.batch-action-notice {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.batch-layout-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.batch-layout-grid label {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.batch-layout-grid input[type="text"],
+.batch-layout-grid input[type="number"] {
+  width: 120px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.batch-layout-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+.batch-modal-select {
+  width: 100%;
+  margin: 8px 0 14px;
+}
+
+.template-grid label {
+  grid-template-columns: 1fr auto;
+}
+
+.template-manage-list {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  margin-bottom: 10px;
+}
+
+.template-manage-item {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.template-manage-item:last-child {
+  border-bottom: none;
+}
+
+.template-manage-item .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.template-manage-item .name {
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.template-manage-item .default-tag {
+  font-size: 10px;
+  color: var(--accent);
+}
+
+.template-manage-item .actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.template-manage-item .actions button {
+  font-size: 11px;
+  padding: 3px 6px;
+}
+
+.template-manage-item .detail {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  white-space: pre-wrap;
 }
 
 .explore-editor .editor-toolbar .btn-clear {
@@ -938,6 +1085,19 @@ body {
 .explore-editor .editor-card.selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+.explore-editor .editor-card.batch-selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent-dim);
+}
+
+.explore-editor .editor-card .card-check {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: 14px;
+  height: 14px;
 }
 
 .explore-editor .editor-card.separator {

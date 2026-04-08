@@ -10,9 +10,16 @@ let exploreItems = [];
 let selectedCardIndex = -1;
 let exploreFormat = 2;
 let isCollecting = false;
+let batchSelectMode = false;
+let selectedCardIndexes = new Set();
+let styleTemplates = [];
+let defaultTemplateId = '';
+let reopenManageAfterTemplateModal = false;
 
 function initExploreEditor() {
   bindExploreEvents();
+  bindBatchEvents();
+  loadStyleTemplateState();
   loadExploreState();
 }
 
@@ -51,6 +58,190 @@ function bindExploreEvents() {
 
   bindExplorePreviewInput();
   bindFormatToggle();
+}
+
+function bindBatchEvents() {
+  const toggle = document.getElementById('batchSelectToggle');
+  const modifyBtn = document.getElementById('batchModifyBtn');
+  const defaultTplBtn = document.getElementById('setDefaultTemplateBtn');
+  const applyBtn = document.getElementById('applyStyleBtn');
+  const batchApplyBtn = document.getElementById('batchApplyConfirmBtn');
+  const batchCancelBtn = document.getElementById('batchCancelBtn');
+  const templateSaveBtn = document.getElementById('templateSaveBtn');
+  const templateCancelBtn = document.getElementById('templateCancelBtn');
+  const defaultCancelBtn = document.getElementById('defaultTemplateCancelBtn');
+  const applyConfirmBtn = document.getElementById('applyTemplateConfirmBtn');
+  const applyCancelBtn = document.getElementById('applyTemplateCancelBtn');
+  const templateSearchInput = document.getElementById('templateSearchInput');
+  const templateManageAddBtn = document.getElementById('templateManageAddBtn');
+  const selectAllBtn = document.getElementById('batchSelectAllBtn');
+  const invertBtn = document.getElementById('batchInvertBtn');
+  const clearSelectionBtn = document.getElementById('batchClearSelectionBtn');
+
+  if (toggle) {
+    toggle.addEventListener('change', (e) => {
+      batchSelectMode = !!e.target.checked;
+      if (!batchSelectMode) selectedCardIndexes.clear();
+      updateBatchSelectedCount();
+      updateBatchActionAvailability();
+      renderExploreCards();
+      renderPropsPanel();
+    });
+  }
+  if (modifyBtn) modifyBtn.addEventListener('click', () => {
+    if (!batchSelectMode) return showBatchNotice('请先开启复选模式');
+    openBatchModal('batchModifyModal');
+  });
+  if (batchCancelBtn) batchCancelBtn.addEventListener('click', () => closeBatchModal('batchModifyModal'));
+  if (batchApplyBtn) batchApplyBtn.addEventListener('click', applyBatchLayoutToSelected);
+  if (templateSaveBtn) templateSaveBtn.addEventListener('click', createStyleTemplateFromModal);
+  if (templateCancelBtn) templateCancelBtn.addEventListener('click', () => {
+    resetTemplateModal();
+    closeBatchModal('styleTemplateModal');
+    if (reopenManageAfterTemplateModal) {
+      reopenManageAfterTemplateModal = false;
+      renderTemplateManageList(document.getElementById('templateSearchInput')?.value?.trim() || '');
+      openBatchModal('defaultTemplateModal');
+    }
+  });
+  if (defaultTplBtn) defaultTplBtn.addEventListener('click', () => {
+    const searchEl = document.getElementById('templateSearchInput');
+    if (searchEl) searchEl.value = '';
+    renderTemplateManageList();
+    openBatchModal('defaultTemplateModal');
+  });
+  if (defaultCancelBtn) defaultCancelBtn.addEventListener('click', () => closeBatchModal('defaultTemplateModal'));
+  if (templateManageAddBtn) templateManageAddBtn.addEventListener('click', () => {
+    resetTemplateModal();
+    reopenManageAfterTemplateModal = true;
+    openBatchModal('styleTemplateModal');
+  });
+  if (applyBtn) applyBtn.addEventListener('click', () => {
+    renderTemplateSelect();
+    openBatchModal('applyStyleModal');
+  });
+  if (applyConfirmBtn) applyConfirmBtn.addEventListener('click', applyTemplateFromModalToSelected);
+  if (applyCancelBtn) applyCancelBtn.addEventListener('click', () => closeBatchModal('applyStyleModal'));
+  if (selectAllBtn) selectAllBtn.addEventListener('click', selectAllCards);
+  if (invertBtn) invertBtn.addEventListener('click', invertSelection);
+  if (clearSelectionBtn) clearSelectionBtn.addEventListener('click', clearSelection);
+  if (templateSearchInput) {
+    templateSearchInput.addEventListener('input', () => renderTemplateManageList(templateSearchInput.value.trim()));
+  }
+
+  updateBatchActionAvailability();
+}
+
+function loadStyleTemplateState() {
+  chrome.storage.local.get(['exploreStyleState'], (result) => {
+    if (result.exploreStyleState) {
+      styleTemplates = result.exploreStyleState.templates || [];
+      defaultTemplateId = result.exploreStyleState.defaultTemplateId || '';
+    }
+    ensureTemplateConsistency();
+    renderTemplateSelect();
+  });
+}
+
+function saveStyleTemplateState() {
+  chrome.storage.local.set({
+    exploreStyleState: {
+      templates: styleTemplates,
+      defaultTemplateId,
+    },
+  });
+}
+
+function renderTemplateSelect() {
+  const selects = ['applyTemplateSelect'];
+  const options = ['<option value="">选择模板</option>']
+    .concat(styleTemplates.map(t => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.name)}${t.id === defaultTemplateId ? '（默认）' : ''}</option>`));
+  selects.forEach((id) => {
+    const select = document.getElementById(id);
+    if (!select) return;
+    select.innerHTML = options.join('');
+    if (defaultTemplateId) select.value = defaultTemplateId;
+  });
+}
+
+function renderTemplateManageList(keyword = '') {
+  const container = document.getElementById('templateManageList');
+  if (!container) return;
+  const list = styleTemplates.filter(t => !keyword || t.name.toLowerCase().includes(keyword.toLowerCase()));
+  if (!list.length) {
+    container.innerHTML = '<div class="template-manage-item">暂无模板</div>';
+    return;
+  }
+  container.innerHTML = list.map((t) => {
+    const styleText = [
+      `layout_flexGrow=${t.style?.layout_flexGrow ?? 1}`,
+      `layout_flexShrink=${t.style?.layout_flexShrink ?? 0}`,
+      `layout_alignSelf=${t.style?.layout_alignSelf ?? 'auto'}`,
+      `layout_flexBasisPercent=${t.style?.layout_flexBasisPercent ?? -1}`,
+      `layout_wrapBefore=${!!t.style?.layout_wrapBefore}`,
+    ].join('\n');
+    return `<div class="template-manage-item" data-id="${escapeHtml(t.id)}">
+      <div class="row"><span class="name">${escapeHtml(t.name)}</span>${t.id === defaultTemplateId ? '<span class="default-tag">默认</span>' : ''}</div>
+      <div class="actions">
+        <button class="tpl-view">查看</button>
+        <button class="tpl-edit">编辑</button>
+        <button class="tpl-default">设默认</button>
+        <button class="tpl-delete" ${styleTemplates.length <= 1 ? 'disabled' : ''}>删除</button>
+      </div>
+      <div class="detail hidden">${escapeHtml(styleText)}</div>
+    </div>`;
+  }).join('');
+
+  container.querySelectorAll('.template-manage-item').forEach((itemEl) => {
+    const id = itemEl.dataset.id;
+    itemEl.querySelector('.tpl-view')?.addEventListener('click', () => {
+      itemEl.querySelector('.detail')?.classList.toggle('hidden');
+    });
+    itemEl.querySelector('.tpl-edit')?.addEventListener('click', () => openEditTemplateModal(id));
+    itemEl.querySelector('.tpl-default')?.addEventListener('click', () => setTemplateAsDefault(id));
+    itemEl.querySelector('.tpl-delete')?.addEventListener('click', () => deleteTemplate(id));
+  });
+}
+
+function openBatchModal(id) {
+  closeAllBatchModals();
+  document.getElementById(id)?.classList.remove('hidden');
+}
+
+function closeBatchModal(id) {
+  document.getElementById(id)?.classList.add('hidden');
+}
+
+function closeAllBatchModals() {
+  ['batchModifyModal', 'styleTemplateModal', 'defaultTemplateModal', 'applyStyleModal']
+    .forEach((id) => document.getElementById(id)?.classList.add('hidden'));
+}
+
+function updateBatchActionAvailability() {
+  const batchBtn = document.getElementById('batchModifyBtn');
+  const selectIds = ['batchSelectAllBtn', 'batchInvertBtn', 'batchClearSelectionBtn'];
+  if (batchBtn) {
+    batchBtn.disabled = !batchSelectMode;
+    batchBtn.classList.toggle('disabled', !batchSelectMode);
+  }
+  selectIds.forEach((id) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.disabled = !batchSelectMode;
+    btn.classList.toggle('disabled', !batchSelectMode);
+  });
+}
+
+function showBatchNotice(message) {
+  const el = document.getElementById('batchActionNotice');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 1800);
+}
+function updateBatchSelectedCount() {
+  const countEl = document.getElementById('batchSelectedCount');
+  if (countEl) countEl.textContent = `已选 ${selectedCardIndexes.size} 项`;
 }
 
 function updateCollectionStatus(active, count = 0) {
@@ -161,17 +352,12 @@ function saveExploreState() {
 }
 
 function addExploreItem(item) {
+  ensureTemplateConsistency();
   const defaults = {
     title: '',
     url: '',
     isSeparator: false,
-    style: {
-      layout_flexGrow: 1,
-      layout_flexShrink: 0,
-      layout_alignSelf: 'auto',
-      layout_flexBasisPercent: -1,
-      layout_wrapBefore: false,
-    },
+    style: getDefaultStyle(),
   };
   exploreItems.push({ ...defaults, ...item, style: { ...defaults.style, ...(item.style || {}) } });
   saveExploreState();
@@ -181,6 +367,9 @@ function addExploreItem(item) {
 
 function removeExploreItem(index) {
   exploreItems.splice(index, 1);
+  selectedCardIndexes = new Set(Array.from(selectedCardIndexes)
+    .filter(i => i !== index)
+    .map(i => (i > index ? i - 1 : i)));
   if (selectedCardIndex === index) selectedCardIndex = -1;
   else if (selectedCardIndex > index) selectedCardIndex--;
   saveExploreState();
@@ -195,14 +384,18 @@ function renderExploreCards() {
 
   container.innerHTML = exploreItems.map((item, i) => {
     const selected = i === selectedCardIndex ? ' selected' : '';
+    const batchSelected = selectedCardIndexes.has(i) ? ' batch-selected' : '';
     const sepClass = item.isSeparator ? ' separator' : '';
     const flexGrow = item.style?.layout_flexGrow ?? 1;
+    const flexShrink = item.style?.layout_flexShrink ?? 0;
     const flexBasis = item.style?.layout_flexBasisPercent ?? -1;
+    const basisCss = flexBasis > 0 ? `${Math.round(flexBasis * 10000) / 100}%` : 'auto';
     const widthStyle = flexBasis > 0
-      ? `flex: 0 0 ${flexBasis * 100}%; max-width: ${flexBasis * 100}%;`
-      : `flex: 1 0 calc((100% - 8px) / 3);`;
+      ? `flex: ${flexGrow} ${flexShrink} ${basisCss}; max-width: ${basisCss};`
+      : `flex: ${flexGrow} ${flexShrink} calc((100% - 8px) / 3);`;
 
-    return `<div class="editor-card${selected}${sepClass}" data-index="${i}" style="${widthStyle}">
+    return `<div class="editor-card${selected}${batchSelected}${sepClass}" data-index="${i}" style="${widthStyle}">
+      ${batchSelectMode ? `<input type="checkbox" class="card-check" data-index="${i}" ${selectedCardIndexes.has(i) ? 'checked' : ''}>` : ''}
       <span class="card-title">${escapeHtml(item.title)}</span>
       ${item.url ? `<span class="card-url">${escapeHtml(item.url.substring(0, 40))}${item.url.length > 40 ? '...' : ''}</span>` : ''}
       <button class="card-delete" data-index="${i}">×</button>
@@ -214,9 +407,29 @@ function renderExploreCards() {
     card.addEventListener('click', (e) => {
       if (e.target.classList.contains('card-delete')) return;
       if (e.target.classList.contains('card-resize-handle')) return;
+      if (e.target.classList.contains('card-check')) return;
+      if (batchSelectMode) {
+        const idx = parseInt(card.dataset.index, 10);
+        if (selectedCardIndexes.has(idx)) selectedCardIndexes.delete(idx);
+        else selectedCardIndexes.add(idx);
+        updateBatchSelectedCount();
+        renderExploreCards();
+        return;
+      }
       selectedCardIndex = parseInt(card.dataset.index, 10);
       renderExploreCards();
       renderPropsPanel();
+    });
+  });
+
+  container.querySelectorAll('.card-check').forEach(chk => {
+    chk.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = parseInt(chk.dataset.index, 10);
+      if (chk.checked) selectedCardIndexes.add(idx);
+      else selectedCardIndexes.delete(idx);
+      updateBatchSelectedCount();
+      renderExploreCards();
     });
   });
 
@@ -324,6 +537,11 @@ function initCardResize() {
 function renderPropsPanel() {
   const container = document.getElementById('exploreProps');
   if (!container) return;
+
+  if (batchSelectMode) {
+    container.innerHTML = '<div class="props-placeholder">复选模式中：右侧单项编辑已禁用，请使用批量工具</div>';
+    return;
+  }
 
   if (selectedCardIndex < 0 || selectedCardIndex >= exploreItems.length) {
     container.innerHTML = '<div class="props-placeholder">选择卡片编辑样式</div>';
@@ -524,11 +742,217 @@ function bindExplorePreviewInput() {
 }
 
 function getDefaultStyle() {
+  const template = styleTemplates.find(t => t.id === defaultTemplateId);
+  if (template?.style) {
+    return {
+      layout_flexGrow: template.style.layout_flexGrow ?? 1,
+      layout_flexShrink: template.style.layout_flexShrink ?? 0,
+      layout_alignSelf: template.style.layout_alignSelf ?? 'auto',
+      layout_flexBasisPercent: template.style.layout_flexBasisPercent ?? -1,
+      layout_wrapBefore: template.style.layout_wrapBefore ?? false,
+    };
+  }
   return {
     layout_flexGrow: 1,
     layout_flexShrink: 0,
     layout_alignSelf: 'auto',
-    layout_flexBasisPercent: -1,
+    layout_flexBasisPercent: parseFloat(document.getElementById('tplFlexBasisPercent')?.value || '-1'),
     layout_wrapBefore: false,
   };
+}
+
+function getBatchStylePatch() {
+  const patch = {};
+  if (document.getElementById('batchEnableFlexGrow')?.checked) patch.layout_flexGrow = parseFloat(document.getElementById('batchFlexGrow')?.value || '1') || 0;
+  if (document.getElementById('batchEnableFlexShrink')?.checked) patch.layout_flexShrink = parseFloat(document.getElementById('batchFlexShrink')?.value || '0') || 0;
+  if (document.getElementById('batchEnableAlignSelf')?.checked) patch.layout_alignSelf = document.getElementById('batchAlignSelf')?.value || 'auto';
+  if (document.getElementById('batchEnableFlexBasis')?.checked) patch.layout_flexBasisPercent = parseFloat(document.getElementById('batchFlexBasisPercent')?.value || '-1');
+  if (document.getElementById('batchEnableWrapBefore')?.checked) patch.layout_wrapBefore = !!document.getElementById('batchWrapBefore')?.checked;
+  return patch;
+}
+
+function applyBatchLayoutToSelected() {
+  if (!selectedCardIndexes.size) {
+    alert('请先在复选模式下选择卡片');
+    return;
+  }
+  const patch = getBatchStylePatch();
+  if (!Object.keys(patch).length) {
+    alert('请至少勾选一个要修改的属性');
+    return;
+  }
+  selectedCardIndexes.forEach(i => {
+    if (!exploreItems[i]) return;
+    exploreItems[i].style = { ...(exploreItems[i].style || {}), ...patch };
+  });
+  saveExploreState();
+  renderExploreCards();
+  renderPropsPanel();
+  showBatchNotice(`已批量更新 ${selectedCardIndexes.size} 项`);
+  closeBatchModal('batchModifyModal');
+}
+
+function createStyleTemplateFromModal() {
+  const editingId = document.getElementById('editingTemplateId')?.value || '';
+  const name = document.getElementById('templateName')?.value?.trim();
+  if (!name) return;
+  const style = {
+    layout_flexGrow: parseFloat(document.getElementById('tplFlexGrow')?.value || '1') || 0,
+    layout_flexShrink: parseFloat(document.getElementById('tplFlexShrink')?.value || '0') || 0,
+    layout_alignSelf: document.getElementById('tplAlignSelf')?.value || 'auto',
+    layout_flexBasisPercent: parseFloat(document.getElementById('tplFlexBasisPercent')?.value || '-1'),
+    layout_wrapBefore: !!document.getElementById('tplWrapBefore')?.checked,
+  };
+  if (editingId) {
+    styleTemplates = styleTemplates.map(t => (t.id === editingId ? { ...t, name, style } : t));
+    showBatchNotice(`已更新模板：${name}`);
+  } else {
+    const id = `tpl_${Date.now()}`;
+    styleTemplates.push({ id, name, style });
+    showBatchNotice(`已新增模板：${name}`);
+  }
+  saveStyleTemplateState();
+  renderTemplateSelect();
+  renderTemplateManageList();
+  resetTemplateModal();
+  closeBatchModal('styleTemplateModal');
+  if (reopenManageAfterTemplateModal) {
+    reopenManageAfterTemplateModal = false;
+    renderTemplateManageList(document.getElementById('templateSearchInput')?.value?.trim() || '');
+    openBatchModal('defaultTemplateModal');
+  }
+}
+
+function openEditTemplateModal(id) {
+  const tpl = styleTemplates.find(t => t.id === id);
+  if (!tpl) return;
+  document.getElementById('styleTemplateModalTitle').textContent = '编辑样式模板';
+  document.getElementById('editingTemplateId').value = tpl.id;
+  document.getElementById('templateName').value = tpl.name || '';
+  document.getElementById('tplFlexGrow').value = tpl.style?.layout_flexGrow ?? 1;
+  document.getElementById('tplFlexShrink').value = tpl.style?.layout_flexShrink ?? 0;
+  document.getElementById('tplAlignSelf').value = tpl.style?.layout_alignSelf ?? 'auto';
+  document.getElementById('tplFlexBasisPercent').value = tpl.style?.layout_flexBasisPercent ?? -1;
+  document.getElementById('tplWrapBefore').checked = !!tpl.style?.layout_wrapBefore;
+  reopenManageAfterTemplateModal = true;
+  openBatchModal('styleTemplateModal');
+}
+
+function setTemplateAsDefault(id) {
+  defaultTemplateId = id;
+  saveStyleTemplateState();
+  renderTemplateSelect();
+  renderTemplateManageList(document.getElementById('templateSearchInput')?.value?.trim() || '');
+  showBatchNotice('默认模板已更新');
+}
+
+function deleteTemplate(id) {
+  if (styleTemplates.length <= 1) {
+    showBatchNotice('至少保留一个模板');
+    return;
+  }
+  const tpl = styleTemplates.find(t => t.id === id);
+  if (!tpl) return;
+  if (!confirm(`确认删除模板「${tpl.name}」吗？`)) return;
+  styleTemplates = styleTemplates.filter(t => t.id !== id);
+  if (defaultTemplateId === id) defaultTemplateId = '';
+  saveStyleTemplateState();
+  renderTemplateSelect();
+  renderTemplateManageList(document.getElementById('templateSearchInput')?.value?.trim() || '');
+  showBatchNotice('模板已删除');
+}
+
+function ensureTemplateConsistency() {
+  if (!Array.isArray(styleTemplates)) styleTemplates = [];
+  if (!styleTemplates.length) {
+    const id = `tpl_${Date.now()}`;
+    styleTemplates = [{
+      id,
+      name: '默认',
+      style: {
+        layout_flexGrow: 1,
+        layout_flexShrink: 0,
+        layout_alignSelf: 'auto',
+        layout_flexBasisPercent: -1,
+        layout_wrapBefore: false,
+      },
+    }];
+    defaultTemplateId = id;
+    saveStyleTemplateState();
+    return;
+  }
+  styleTemplates = styleTemplates.map((t) => ({
+    ...t,
+    style: {
+      layout_flexGrow: t.style?.layout_flexGrow ?? 1,
+      layout_flexShrink: t.style?.layout_flexShrink ?? 0,
+      layout_alignSelf: t.style?.layout_alignSelf ?? 'auto',
+      layout_flexBasisPercent: t.style?.layout_flexBasisPercent ?? -1,
+      layout_wrapBefore: t.style?.layout_wrapBefore ?? false,
+    },
+  }));
+  if (!defaultTemplateId || !styleTemplates.some(t => t.id === defaultTemplateId)) {
+    defaultTemplateId = styleTemplates[0].id;
+  }
+  saveStyleTemplateState();
+}
+
+function selectAllCards() {
+  if (!batchSelectMode) return;
+  selectedCardIndexes = new Set(exploreItems.map((_, i) => i));
+  updateBatchSelectedCount();
+  renderExploreCards();
+}
+
+function invertSelection() {
+  if (!batchSelectMode) return;
+  const next = new Set();
+  exploreItems.forEach((_, i) => {
+    if (!selectedCardIndexes.has(i)) next.add(i);
+  });
+  selectedCardIndexes = next;
+  updateBatchSelectedCount();
+  renderExploreCards();
+}
+
+function clearSelection() {
+  selectedCardIndexes.clear();
+  updateBatchSelectedCount();
+  renderExploreCards();
+}
+
+function resetTemplateModal() {
+  document.getElementById('styleTemplateModalTitle').textContent = '新增样式模板';
+  document.getElementById('editingTemplateId').value = '';
+  document.getElementById('templateName').value = '';
+  document.getElementById('tplFlexGrow').value = 1;
+  document.getElementById('tplFlexShrink').value = 0;
+  document.getElementById('tplAlignSelf').value = 'auto';
+  document.getElementById('tplFlexBasisPercent').value = -1;
+  document.getElementById('tplWrapBefore').checked = false;
+}
+
+function applyTemplateFromModalToSelected() {
+  const select = document.getElementById('applyTemplateSelect');
+  const tpl = styleTemplates.find(t => t.id === select?.value);
+  if (!tpl) {
+    alert('请先选择模板');
+    return;
+  }
+  const targetIndexes = batchSelectMode && selectedCardIndexes.size
+    ? Array.from(selectedCardIndexes)
+    : (selectedCardIndex >= 0 ? [selectedCardIndex] : []);
+  if (!targetIndexes.length) {
+    alert('请先选择卡片（单选或复选）');
+    return;
+  }
+  targetIndexes.forEach(i => {
+    if (!exploreItems[i]) return;
+    exploreItems[i].style = { ...(exploreItems[i].style || {}), ...(tpl.style || {}) };
+  });
+  saveExploreState();
+  renderExploreCards();
+  renderPropsPanel();
+  showBatchNotice(`已应用模板到 ${targetIndexes.length} 项`);
+  closeBatchModal('applyStyleModal');
 }
