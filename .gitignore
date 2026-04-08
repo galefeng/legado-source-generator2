@@ -1,3 +1,4 @@
 *.crx
 *.pem
 web-ext-artifacts/
+AGENTS.md
