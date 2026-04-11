@@ -39,15 +39,15 @@
             <label class="batch-check-toggle"><input id="batchSelectToggle" type="checkbox">开启复选</label>
             <button id="batchSelectAllBtn" class="btn btn-action">全选</button>
             <button id="batchInvertBtn" class="btn btn-action">反选</button>
-            <button id="batchClearSelectionBtn" class="btn btn-action">清空选择</button>
             <button id="batchLayoutBtn" class="btn btn-action">批量改 layout</button>
             <button id="batchUrlBtn" class="btn btn-action">批量改 URL</button>
+            <button id="exploreClearBtn" class="btn btn-action btn-clear">清空</button>
+          </div>
+          <div class="toolbar-row toolbar-templates">
             <button id="setDefaultTemplateBtn" class="btn btn-action">模板管理</button>
             <button id="applyStyleBtn" class="btn btn-action">应用样式</button>
-            <span id="batchSelectedCount" class="batch-count">已选 0 项</span>
           </div>
         </div>
-        <button id="exploreClearBtn" class="btn btn-action btn-clear">清空</button>
       </div>
       <div id="batchActionNotice" class="batch-action-notice hidden"></div>
       <div class="editor-layout">
@@ -115,7 +115,7 @@
         <button id="nextBtn" class="btn btn-primary">下一步</button>
       </div>
       <button id="exportBtn" class="btn btn-success">导出 JSON</button>
-      <button id="resetBtn" class="btn btn-danger">重置所有</button>
+      <button id="resetBtn" class="btn btn-clear">重置所有</button>
     </footer>
 
     <div id="exportModal" class="modal hidden">

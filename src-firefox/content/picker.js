@@ -28,11 +28,26 @@
   };
 
   /**
-   * Show toast notification
+   * Show toast notification - delegate to popup
    * @param {string} message - Toast message
    * @param {string} type - Toast type: 'warning' | 'error' | 'info'
    */
   function showToast(message, type = 'warning') {
+    // Send message to popup to show toast in sidebar
+    chrome.runtime.sendMessage({
+      action: 'showToast',
+      message: message,
+      type: type
+    }).catch(() => {
+      // If popup is not available, show locally (fallback)
+      showToastLocal(message, type);
+    });
+  }
+
+  /**
+   * Local toast fallback (used when popup unavailable)
+   */
+  function showToastLocal(message, type = 'warning') {
     const colors = {
       warning: '#faad14',
       error: '#ff4d4f',
