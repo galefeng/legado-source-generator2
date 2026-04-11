@@ -40,7 +40,8 @@
             <button id="batchSelectAllBtn" class="btn btn-action">全选</button>
             <button id="batchInvertBtn" class="btn btn-action">反选</button>
             <button id="batchClearSelectionBtn" class="btn btn-action">清空选择</button>
-            <button id="batchModifyBtn" class="btn btn-action">批量修改</button>
+            <button id="batchLayoutBtn" class="btn btn-action">批量改 layout</button>
+            <button id="batchUrlBtn" class="btn btn-action">批量改 URL</button>
             <button id="setDefaultTemplateBtn" class="btn btn-action">模板管理</button>
             <button id="applyStyleBtn" class="btn btn-action">应用样式</button>
             <span id="batchSelectedCount" class="batch-count">已选 0 项</span>
@@ -147,7 +148,7 @@
       </div>
     </div>
 
-    <div id="batchModifyModal" class="modal hidden">
+    <div id="batchLayoutModal" class="modal hidden">
       <div class="modal-content">
         <h3>批量修改 layout 属性</h3>
         <div class="batch-layout-grid">
@@ -158,8 +159,65 @@
           <label><input type="checkbox" id="batchEnableWrapBefore"> layout_wrapBefore <input type="checkbox" id="batchWrapBefore"></label>
         </div>
         <div class="modal-actions">
-          <button id="batchApplyConfirmBtn" class="btn btn-primary">应用到已选</button>
-          <button id="batchCancelBtn" class="btn btn-secondary">取消</button>
+          <button id="batchLayoutApplyConfirmBtn" class="btn btn-primary">应用到已选</button>
+          <button id="batchLayoutCancelBtn" class="btn btn-secondary">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="batchUrlModal" class="modal hidden">
+      <div class="modal-content">
+        <h3>批量修改 URL</h3>
+        <div class="batch-url-tabs" id="batchUrlTabs">
+          <button id="batchUrlTabTemplate" class="batch-url-tab active" data-mode="template">模板匹配</button>
+          <button id="batchUrlTabRegex" class="batch-url-tab" data-mode="regex">正则匹配</button>
+        </div>
+        <div id="batchUrlPanelTemplate" class="batch-url-panel">
+          <div class="batch-url-help">
+            <div class="title">模板匹配说明与示例</div>
+            <div>规则 1：如果链接里只有“页码数字”变化，`第一页差异` 留空。</div>
+            <div>规则 2：如果第一页没有页码变量（或结构不同），`第一页差异` 填“分页链接里多出来的那一段（含页码）”。</div>
+            <div>分类匹配模板怎么填：以“第一页 URL”为基准，把分类那段替换成 `分类`，其它部分保持不变。</div>
+            <div>翻页模板怎么填：以“第二页 URL”为基准，把分类那段替换成 `分类`，把页码数字替换成 `页码`。</div>
+            <div>示例 A（第一页与分页结构不同）：</div>
+            <div>第一页：`https://www.demo-site.com/fantasy/`</div>
+            <div>第二页：`https://www.demo-site.com/fantasy/index_2.html`</div>
+            <div>填写：</div>
+            <div>分类匹配模板：`https://www.demo-site.com/分类/`</div>
+            <div>翻页模板：`https://www.demo-site.com/分类/index_页码.html`</div>
+            <div>第一页差异：`index_页码.html`</div>
+            <div>示例 A-2（第一页是 index.html，分页是 index_2.html）：</div>
+            <div>第一页：`https://www.demo-site.com/fantasy/index.html`</div>
+            <div>第二页：`https://www.demo-site.com/fantasy/index_2.html`</div>
+            <div>填写：</div>
+            <div>分类匹配模板：`https://www.demo-site.com/分类/index.html`</div>
+            <div>翻页模板：`https://www.demo-site.com/分类/index_页码.html`</div>
+            <div>第一页差异：`index_页码.html`</div>
+            <div>示例 B（分类位 + 页码位都在 URL 中）：</div>
+            <div>第一页：`https://www.demo-site.com/tags-150-0.html`（150 是分类，0 是页码）</div>
+            <div>第二页：`https://www.demo-site.com/tags-150-1.html`</div>
+            <div>填写：</div>
+            <div>分类匹配模板：`https://www.demo-site.com/tags-分类-0.html`</div>
+            <div>翻页模板：`https://www.demo-site.com/tags-分类-页码.html`</div>
+            <div>第一页差异：留空</div>
+          </div>
+          <div class="batch-layout-grid template-grid batch-url-form">
+            <label><span>分类匹配模板</span><textarea id="batchCategoryPattern" class="input-url batch-url-input" rows="1" placeholder="https://www.example.com/分类/"></textarea></label>
+            <label><span>翻页模板</span><textarea id="batchPagedUrlTemplate" class="input-url batch-url-input" rows="1" placeholder="https://www.example.com/分类/页码.html"></textarea></label>
+            <label><span>第一页差异</span><textarea id="batchFirstPageDiff" class="input-url batch-url-input" rows="1" placeholder="页码.html（可选）"></textarea></label>
+          </div>
+        </div>
+        <div id="batchUrlPanelRegex" class="batch-url-panel hidden">
+          <div class="batch-layout-grid template-grid batch-url-form">
+            <label><span>正则表达式</span><textarea id="batchUrlPattern" class="input-url batch-url-input" rows="1" placeholder="如：/sort/xuanhuan/"></textarea></label>
+            <label><span>替换为</span><textarea id="batchUrlReplacement" class="input-url batch-url-input" rows="1" placeholder="如：/sort/分类/"></textarea></label>
+            <label><input type="checkbox" id="batchRegexGlobal" checked> 全局替换（g）</label>
+            <label><input type="checkbox" id="batchRegexIgnoreCase"> 忽略大小写（i）</label>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="batchUrlApplyConfirmBtn" class="btn btn-primary">应用到已选</button>
+          <button id="batchUrlCancelBtn" class="btn btn-secondary">取消</button>
         </div>
       </div>
     </div>
@@ -206,6 +264,7 @@
       </div>
     </div>
   </div>
+  <script src="batch-url-utils.js"></script>
   <script src="explore-url-editor.js"></script>
   <script src="popup.js"></script>
 </body>
