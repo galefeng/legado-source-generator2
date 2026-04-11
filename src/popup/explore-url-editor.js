@@ -15,6 +15,7 @@ let selectedCardIndexes = new Set();
 let styleTemplates = [];
 let defaultTemplateId = '';
 let reopenManageAfterTemplateModal = false;
+let batchUrlMode = 'template';
 
 function initExploreEditor() {
   bindExploreEvents();
@@ -62,11 +63,14 @@ function bindExploreEvents() {
 
 function bindBatchEvents() {
   const toggle = document.getElementById('batchSelectToggle');
-  const modifyBtn = document.getElementById('batchModifyBtn');
+  const layoutBtn = document.getElementById('batchLayoutBtn');
+  const urlBtn = document.getElementById('batchUrlBtn');
   const defaultTplBtn = document.getElementById('setDefaultTemplateBtn');
   const applyBtn = document.getElementById('applyStyleBtn');
-  const batchApplyBtn = document.getElementById('batchApplyConfirmBtn');
-  const batchCancelBtn = document.getElementById('batchCancelBtn');
+  const layoutApplyBtn = document.getElementById('batchLayoutApplyConfirmBtn');
+  const layoutCancelBtn = document.getElementById('batchLayoutCancelBtn');
+  const urlApplyBtn = document.getElementById('batchUrlApplyConfirmBtn');
+  const urlCancelBtn = document.getElementById('batchUrlCancelBtn');
   const templateSaveBtn = document.getElementById('templateSaveBtn');
   const templateCancelBtn = document.getElementById('templateCancelBtn');
   const defaultCancelBtn = document.getElementById('defaultTemplateCancelBtn');
@@ -77,6 +81,8 @@ function bindBatchEvents() {
   const selectAllBtn = document.getElementById('batchSelectAllBtn');
   const invertBtn = document.getElementById('batchInvertBtn');
   const clearSelectionBtn = document.getElementById('batchClearSelectionBtn');
+  const tabTemplateBtn = document.getElementById('batchUrlTabTemplate');
+  const tabRegexBtn = document.getElementById('batchUrlTabRegex');
 
   if (toggle) {
     toggle.addEventListener('change', (e) => {
@@ -88,12 +94,20 @@ function bindBatchEvents() {
       renderPropsPanel();
     });
   }
-  if (modifyBtn) modifyBtn.addEventListener('click', () => {
+  if (layoutBtn) layoutBtn.addEventListener('click', () => {
     if (!batchSelectMode) return showBatchNotice('请先开启复选模式');
-    openBatchModal('batchModifyModal');
+    openBatchModal('batchLayoutModal');
   });
-  if (batchCancelBtn) batchCancelBtn.addEventListener('click', () => closeBatchModal('batchModifyModal'));
-  if (batchApplyBtn) batchApplyBtn.addEventListener('click', applyBatchLayoutToSelected);
+  if (urlBtn) urlBtn.addEventListener('click', () => {
+    if (!batchSelectMode) return showBatchNotice('请先开启复选模式');
+    prefillBatchTemplateFieldsFromSelection();
+    setBatchUrlMode('template');
+    openBatchModal('batchUrlModal');
+  });
+  if (layoutCancelBtn) layoutCancelBtn.addEventListener('click', () => closeBatchModal('batchLayoutModal'));
+  if (layoutApplyBtn) layoutApplyBtn.addEventListener('click', applyBatchLayoutToSelected);
+  if (urlCancelBtn) urlCancelBtn.addEventListener('click', () => closeBatchModal('batchUrlModal'));
+  if (urlApplyBtn) urlApplyBtn.addEventListener('click', applyBatchUrlToSelected);
   if (templateSaveBtn) templateSaveBtn.addEventListener('click', createStyleTemplateFromModal);
   if (templateCancelBtn) templateCancelBtn.addEventListener('click', () => {
     resetTemplateModal();
@@ -125,10 +139,13 @@ function bindBatchEvents() {
   if (selectAllBtn) selectAllBtn.addEventListener('click', selectAllCards);
   if (invertBtn) invertBtn.addEventListener('click', invertSelection);
   if (clearSelectionBtn) clearSelectionBtn.addEventListener('click', clearSelection);
+  if (tabTemplateBtn) tabTemplateBtn.addEventListener('click', () => setBatchUrlMode('template'));
+  if (tabRegexBtn) tabRegexBtn.addEventListener('click', () => setBatchUrlMode('regex'));
   if (templateSearchInput) {
     templateSearchInput.addEventListener('input', () => renderTemplateManageList(templateSearchInput.value.trim()));
   }
 
+  bindBatchUrlInputAutoResize();
   updateBatchActionAvailability();
 }
 
@@ -213,16 +230,21 @@ function closeBatchModal(id) {
 }
 
 function closeAllBatchModals() {
-  ['batchModifyModal', 'styleTemplateModal', 'defaultTemplateModal', 'applyStyleModal']
+  ['batchLayoutModal', 'batchUrlModal', 'styleTemplateModal', 'defaultTemplateModal', 'applyStyleModal']
     .forEach((id) => document.getElementById(id)?.classList.add('hidden'));
 }
 
 function updateBatchActionAvailability() {
-  const batchBtn = document.getElementById('batchModifyBtn');
+  const layoutBtn = document.getElementById('batchLayoutBtn');
+  const urlBtn = document.getElementById('batchUrlBtn');
   const selectIds = ['batchSelectAllBtn', 'batchInvertBtn', 'batchClearSelectionBtn'];
-  if (batchBtn) {
-    batchBtn.disabled = !batchSelectMode;
-    batchBtn.classList.toggle('disabled', !batchSelectMode);
+  if (layoutBtn) {
+    layoutBtn.disabled = !batchSelectMode;
+    layoutBtn.classList.toggle('disabled', !batchSelectMode);
+  }
+  if (urlBtn) {
+    urlBtn.disabled = !batchSelectMode;
+    urlBtn.classList.toggle('disabled', !batchSelectMode);
   }
   selectIds.forEach((id) => {
     const btn = document.getElementById(id);
@@ -238,6 +260,71 @@ function showBatchNotice(message) {
   el.textContent = message;
   el.classList.remove('hidden');
   setTimeout(() => el.classList.add('hidden'), 1800);
+}
+
+function setBatchUrlMode(mode) {
+  batchUrlMode = mode === 'regex' ? 'regex' : 'template';
+  const templateBtn = document.getElementById('batchUrlTabTemplate');
+  const regexBtn = document.getElementById('batchUrlTabRegex');
+  const templatePanel = document.getElementById('batchUrlPanelTemplate');
+  const regexPanel = document.getElementById('batchUrlPanelRegex');
+
+  if (templateBtn) templateBtn.classList.toggle('active', batchUrlMode === 'template');
+  if (regexBtn) regexBtn.classList.toggle('active', batchUrlMode === 'regex');
+  if (templatePanel) templatePanel.classList.toggle('hidden', batchUrlMode !== 'template');
+  if (regexPanel) regexPanel.classList.toggle('hidden', batchUrlMode !== 'regex');
+}
+
+function bindBatchUrlInputAutoResize() {
+  const ids = [
+    'batchCategoryPattern',
+    'batchPagedUrlTemplate',
+    'batchFirstPageDiff',
+    'batchUrlPattern',
+    'batchUrlReplacement',
+  ];
+  ids.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.batchResizeBound === '1') return;
+    el.dataset.batchResizeBound = '1';
+    if (typeof autoResizeTextarea === 'function') {
+      autoResizeTextarea(el);
+      return;
+    }
+    const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 19;
+    const maxHeight = lineHeight * 10;
+    const resize = () => {
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+    };
+    el.addEventListener('input', resize);
+    resize();
+  });
+}
+
+function getFirstSelectedUrl() {
+  const sortedIndexes = Array.from(selectedCardIndexes).sort((a, b) => a - b);
+  for (const i of sortedIndexes) {
+    const item = exploreItems[i];
+    if (!item || item.isSeparator) continue;
+    const url = String(item.url || '').trim();
+    if (url) return url;
+  }
+  return '';
+}
+
+function setBatchUrlFieldValue(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = value;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function prefillBatchTemplateFieldsFromSelection() {
+  const sampleUrl = getFirstSelectedUrl();
+  if (!sampleUrl) return;
+  setBatchUrlFieldValue('batchCategoryPattern', sampleUrl);
+  setBatchUrlFieldValue('batchPagedUrlTemplate', sampleUrl);
 }
 function updateBatchSelectedCount() {
   const countEl = document.getElementById('batchSelectedCount');
@@ -771,6 +858,25 @@ function getBatchStylePatch() {
   return patch;
 }
 
+function getBatchUrlReplaceConfig() {
+  const pattern = document.getElementById('batchUrlPattern')?.value || '';
+  if (!pattern.trim()) return null;
+  return {
+    pattern,
+    replacement: document.getElementById('batchUrlReplacement')?.value || '',
+    global: !!document.getElementById('batchRegexGlobal')?.checked,
+    ignoreCase: !!document.getElementById('batchRegexIgnoreCase')?.checked,
+  };
+}
+
+function getBatchCategoryPagingConfig() {
+  const categoryPattern = document.getElementById('batchCategoryPattern')?.value?.trim() || '';
+  const pagedUrlTemplate = document.getElementById('batchPagedUrlTemplate')?.value?.trim() || '';
+  const firstPageDiff = document.getElementById('batchFirstPageDiff')?.value?.trim() || '';
+  if (!categoryPattern && !pagedUrlTemplate && !firstPageDiff) return null;
+  return { categoryPattern, pagedUrlTemplate, firstPageDiff };
+}
+
 function applyBatchLayoutToSelected() {
   if (!selectedCardIndexes.size) {
     alert('请先在复选模式下选择卡片');
@@ -778,18 +884,84 @@ function applyBatchLayoutToSelected() {
   }
   const patch = getBatchStylePatch();
   if (!Object.keys(patch).length) {
-    alert('请至少勾选一个要修改的属性');
+    alert('请至少勾选一个要修改的 layout 属性');
     return;
   }
-  selectedCardIndexes.forEach(i => {
+  const targetIndexes = Array.from(selectedCardIndexes);
+  targetIndexes.forEach(i => {
     if (!exploreItems[i]) return;
     exploreItems[i].style = { ...(exploreItems[i].style || {}), ...patch };
   });
   saveExploreState();
   renderExploreCards();
   renderPropsPanel();
-  showBatchNotice(`已批量更新 ${selectedCardIndexes.size} 项`);
-  closeBatchModal('batchModifyModal');
+  showBatchNotice(`已更新 layout ${targetIndexes.length} 项`);
+  closeBatchModal('batchLayoutModal');
+}
+
+function applyBatchUrlToSelected() {
+  if (!selectedCardIndexes.size) {
+    alert('请先在复选模式下选择卡片');
+    return;
+  }
+  if (typeof BatchUrlUtils === 'undefined') {
+    alert('URL 替换工具未加载，请刷新后重试');
+    return;
+  }
+
+  const useTemplateMode = batchUrlMode !== 'regex';
+  const urlConfig = useTemplateMode ? null : getBatchUrlReplaceConfig();
+  const categoryConfig = useTemplateMode ? getBatchCategoryPagingConfig() : null;
+
+  if (useTemplateMode && !categoryConfig) {
+    alert('模板匹配模式下，请填写分类匹配模板与翻页模板');
+    return;
+  }
+  if (!useTemplateMode && !urlConfig) {
+    alert('正则匹配模式下，请填写正则表达式');
+    return;
+  }
+
+  if (categoryConfig) {
+    const hasCategoryPattern = !!categoryConfig.categoryPattern;
+    const hasPagedTemplate = !!categoryConfig.pagedUrlTemplate;
+    if (hasCategoryPattern !== hasPagedTemplate) {
+      alert('分类匹配模板和翻页模板需同时填写');
+      return;
+    }
+  }
+  const targetIndexes = Array.from(selectedCardIndexes);
+  if (urlConfig) {
+    try {
+      BatchUrlUtils.buildBatchReplaceRegex(urlConfig.pattern, urlConfig);
+    } catch (error) {
+      alert(`URL 正则无效：${error.message || error}`);
+      return;
+    }
+  }
+  let changedCount = 0;
+  let effectiveCount = 0;
+  targetIndexes.forEach((i) => {
+    const item = exploreItems[i];
+    if (!item || item.isSeparator) return;
+    effectiveCount += 1;
+    const prevUrl = String(item.url || '');
+    let nextUrl = prevUrl;
+    if (categoryConfig) {
+      nextUrl = BatchUrlUtils.applyCategoryPagingByTemplate(nextUrl, categoryConfig);
+    }
+    if (urlConfig) {
+      nextUrl = BatchUrlUtils.replaceUrlByRegex(nextUrl, urlConfig.pattern, urlConfig.replacement, urlConfig);
+    }
+    item.url = nextUrl;
+    if (nextUrl !== prevUrl) changedCount += 1;
+  });
+  saveExploreState();
+  updateExploreUrlPreview();
+  renderExploreCards();
+  renderPropsPanel();
+  showBatchNotice(`已更新 URL ${changedCount}/${effectiveCount} 项`);
+  closeBatchModal('batchUrlModal');
 }
 
 function createStyleTemplateFromModal() {
