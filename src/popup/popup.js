@@ -848,7 +848,7 @@ function handleNext() {
   const fieldState = rule.fieldStates[field.key];
 
   if (field.required && (!fieldState || fieldState === 'pending' || fieldState === 'skipped')) {
-    alert(`请完成必填字段"${field.label}"`);
+    showToast(`请完成必填字段"${field.label}"`, 'warning');
     return;
   }
 
@@ -906,7 +906,7 @@ function buildRuleSection(type) {
 function handleCopy() {
   const textarea = document.getElementById('jsonOutput');
   navigator.clipboard.writeText(textarea.value).then(() => {
-    alert('已复制到剪贴板');
+    showToast('已复制到剪贴板', 'info');
   }).catch(() => {
     textarea.select();
     document.execCommand('copy');
@@ -1081,6 +1081,9 @@ function bindMessageListener() {
         }
         break;
       }
+      case 'showToast':
+        showToast(message.message, message.type);
+        break;
       default:
         break;
     }
@@ -1103,4 +1106,55 @@ function updatePickerStatus(message) {
   const elementEl = document.getElementById('pickerStatusElement');
   if (stepEl) stepEl.textContent = message.step || '-';
   if (elementEl) elementEl.textContent = message.elementInfo ? `${message.elementInfo} ${message.elementText || ''}` : '-';
+}
+
+/**
+ * Show toast notification (same style as picker.js)
+ * @param {string} message - Toast message
+ * @param {string} type - Toast type: 'warning' | 'error' | 'info'
+ */
+function showToast(message, type = 'warning') {
+  const colors = {
+    warning: '#faad14',
+    error: '#ff4d4f',
+    info: '#1890ff'
+  };
+
+  let container = document.getElementById('popup-toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'popup-toast-container';
+    container.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 2147483647;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    `;
+    document.documentElement.appendChild(container);
+  }
+
+  const toast = document.createElement('div');
+  toast.className = `popup-toast popup-toast-${type}`;
+  toast.textContent = message;
+  toast.style.cssText = `
+    background: ${colors[type] || colors.warning};
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    animation: toast-in 0.3s ease;
+  `;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    if (toast && toast.parentNode) {
+      toast.style.animation = 'toast-out 0.3s ease forwards';
+      setTimeout(() => toast.remove(), 300);
+    }
+  }, 4000);
 }

@@ -469,13 +469,14 @@ body {
 }
 
 .btn-clear {
+  background: var(--danger-dim);
   color: var(--danger);
-  border: 1px solid var(--danger-dim);
-  background: transparent;
+  border: 1px solid transparent;
 }
 
-.btn-clear:hover {
-  background: var(--danger-dim);
+.btn-clear:hover:not(:disabled) {
+  background: var(--danger);
+  color: #0f1117;
 }
 
 /* ── Selector Info ──────────────────────── */
@@ -800,7 +801,8 @@ body {
   gap: 6px;
   flex-wrap: wrap;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
+  flex: 1;
 }
 
 .explore-editor .editor-toolbar .toolbar-row {
@@ -808,9 +810,19 @@ body {
   gap: 6px;
   flex-wrap: wrap;
   align-items: center;
+  width: 100%;
+}
+
+.explore-editor .editor-toolbar .toolbar-row .btn-clear {
+  margin-left: auto;
 }
 
 .explore-editor .editor-toolbar .toolbar-batch {
+  padding-top: 4px;
+  border-top: 1px dashed var(--border);
+}
+
+.explore-editor .editor-toolbar .toolbar-templates {
   padding-top: 4px;
   border-top: 1px dashed var(--border);
 }
@@ -1053,6 +1065,16 @@ body {
   50% { opacity: 0.4; }
 }
 
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes toast-out {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(20px); }
+}
+
 .explore-collection-status .status-count {
   color: var(--text-secondary);
   font-size: 13px;
@@ -1190,6 +1212,7 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 120px;
+  padding-left: 18px;
 }
 
 .explore-editor .editor-card .card-url {
