@@ -550,18 +550,20 @@ function handleIndexApply() {
     const startVal = start ? parseInt(start, 10) : 0;
     const endVal = end ? parseInt(end, 10) : 0;
 
-    let jsCode;
     let endExpr;
     if (endVal > 0) {
       endExpr = String(endVal);
+    } else if (endVal === -1) {
+      endExpr = 'list.size()';
     } else if (endVal < -1) {
       endExpr = `list.size() + (${endVal}) + 1`;
     } else {
       endExpr = 'list.size()';
     }
 
+    const s = startVal > 1 ? startVal - 1 : 0;
+    let jsCode;
     if (startVal > 1 || endVal > 0 || endVal < -1) {
-      const s = startVal > 1 ? startVal - 1 : 0;
       jsCode = buildJsRule(`        var doc = org.jsoup.Jsoup.parse(result);
         var list = doc.select("${baseSelector}");
         var start = ${s};
@@ -598,18 +600,7 @@ function handleIndexApply() {
     var index = ${index};
     return ${returnExpr};`);
     } else {
-      let returnExpr;
-      if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) {
-        returnExpr = 'String(list.attr("href"))';
-      } else if (field.key === 'coverUrl') {
-        returnExpr = 'String(list.attr("src"))';
-      } else {
-        returnExpr = 'String(list.text())';
-      }
-
-      jsCode = buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
-    var list = doc.select("${baseSelector}");
-    return ${returnExpr};`);
+      jsCode = baseSelector;
     }
 
     rule.fields[field.key].value = jsCode;
@@ -1025,19 +1016,52 @@ window.togglePreviews = function(header) {
   }
 };
 
-function toLegadoRule(selector, fieldKey) {
+function toLegadoRule(selector, fieldKey, fieldData) {
   const listFields = ['bookList', 'chapterList'];
-  if (listFields.includes(fieldKey)) {
+  const isListField = listFields.includes(fieldKey);
+
+  // Get index info
+  const hasListIndex = fieldData?.listIndex?.start || fieldData?.listIndex?.end;
+  const hasSingleIndex = fieldData?.listIndex?.single !== undefined && fieldData?.listIndex?.single !== '';
+  const hasIndex = isListField ? hasListIndex : hasSingleIndex;
+
+  // No index: return pure selector (same as list fields)
+  if (!hasIndex) {
+    return selector;
+  }
+
+  // Has index: generate JS code
+  const startVal = fieldData.listIndex.start ? parseInt(fieldData.listIndex.start, 10) : 0;
+  const endVal = fieldData.listIndex.end ? parseInt(fieldData.listIndex.end, 10) : 0;
+  const singleVal = fieldData.listIndex.single ? parseInt(fieldData.listIndex.single, 10) : 0;
+
+  // Validate parse result
+  if (isNaN(startVal) || isNaN(endVal) || isNaN(singleVal)) {
+    return selector; // Fallback to pure selector on invalid input
+  }
+
+  if (isListField) {
+    // Note: List fields (bookList/chapterList) typically don't reach here because
+    // they usually go through handleIndexApply() after index input.
+    // This branch exists as defensive coding for edge cases.
+    return selector;
+  }
+
+  // Non-list field with index
+  const index = singleVal > 0 ? singleVal - 1 : singleVal;
+
+  // If index is 0 (default), no need to generate JS - return pure selector
+  if (index === 0) {
     return selector;
   }
 
   let returnExpr;
   if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(fieldKey)) {
-    returnExpr = 'String(list.attr("href"))';
+    returnExpr = `String(list.get(${index}).attr("href"))`;
   } else if (fieldKey === 'coverUrl') {
-    returnExpr = 'String(list.attr("src"))';
+    returnExpr = `String(list.get(${index}).attr("src"))`;
   } else {
-    returnExpr = 'String(list.text())';
+    returnExpr = `String(list.get(${index}).text())`;
   }
 
   return buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
@@ -1057,7 +1081,8 @@ function handleSelectorSelected(message) {
   }
 
   const rule = getRuleState();
-  const legadoRule = toLegadoRule(selector, step);
+  const fieldData = rule.fields[step] || {};
+  const legadoRule = toLegadoRule(selector, step, fieldData);
 
   rule.fields[step] = {
     value: legadoRule,
