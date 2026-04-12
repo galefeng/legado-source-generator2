@@ -747,6 +747,8 @@ function bindEvents() {
     const before = el.value.substring(0, pos);
     const after = el.value.substring(pos);
     el.value = before + '{{page}}' + after;
+    autoResizeTextarea(el);
+    saveState();
     el.focus();
   });
 }
