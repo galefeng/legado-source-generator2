@@ -670,12 +670,7 @@
       formSubmitHandler = null;
     }
     restoreFilledInputs();
-    const forms = detectSearchForms();
-    chrome.runtime.sendMessage({
-      action: 'searchCaptureForms',
-      forms,
-      charset: detectPageCharset(),
-    });
+    // Don't send searchCaptureForms here - cancellation means user doesn't want any data
   }
 
   /* ═══════════════════════════════════
