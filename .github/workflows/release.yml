@@ -55,12 +55,23 @@ jobs:
           {
             printf '## 本次更新\n\n'
             if [ -n "$PREV_TAG" ]; then
-              git log --no-merges --pretty='- %s' "${PREV_TAG}..v${VERSION}"
+              RANGE="${PREV_TAG}..v${VERSION}"
               printf '\n'
               printf 'Full Changelog: https://github.com/%s/compare/%s...v%s\n' "$GITHUB_REPOSITORY" "$PREV_TAG" "$VERSION"
             else
-              git log --no-merges --pretty='- %s'
+              RANGE="v${VERSION}"
             fi
+
+            git rev-list --no-merges --reverse "$RANGE" | while read -r commit; do
+              SUBJECT=$(git show -s --format='%s' "$commit")
+              BODY=$(git show -s --format='%b' "$commit")
+
+              printf '\n- %s\n' "$SUBJECT"
+              if [ -n "$BODY" ]; then
+                printf '\n'
+                printf '%s\n' "$BODY" | sed 's/^/  /'
+              fi
+            done
           } > release_notes.md
 
       - name: Create GitHub Release
