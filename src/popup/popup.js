@@ -1,3 +1,5 @@
+const RULE_TYPE_ORDER = ['search', 'explore', 'bookInfo', 'toc', 'content'];
+
 const RULE_TYPES = {
   explore: {
     label: '发现页',
@@ -66,8 +68,8 @@ const RULE_TYPES = {
 };
 
 let state = {
-  activeMode: 'rules',
-  activeRuleType: 'explore',
+  activeMode: 'searchUrl',
+  activeRuleType: 'search',
   rules: {
     explore: { currentStep: 0, fields: {}, fieldStates: {}, bookListSelector: null },
     search: { currentStep: 0, fields: {}, fieldStates: {}, bookListSelector: null },
@@ -79,6 +81,8 @@ let state = {
   searchUrl: '',
   bookSourceName: '',
   bookSourceUrl: '',
+  // Captured search configuration
+  searchConfig: null, // { method, url, charset, body, pageTemplate }
 };
 
 function getFields() {
@@ -94,8 +98,9 @@ function renderModeTabs() {
   if (!container) return;
 
   const modes = [
-    { key: 'rules', label: '规则' },
+    { key: 'searchUrl', label: '搜索URL' },
     { key: 'exploreUrl', label: '发现页URL' },
+    { key: 'rules', label: '规则' },
   ];
 
   container.innerHTML = modes.map(m => {
@@ -114,20 +119,30 @@ function renderModeTabs() {
 }
 
 function updateEditorVisibility() {
-  const editor = document.getElementById('exploreUrlEditor');
+  const searchEditor = document.getElementById('searchUrlEditor');
+  const exploreEditor = document.getElementById('exploreUrlEditor');
   const ruleTabs = document.getElementById('ruleTypeTabs');
   const stepIndicator = document.querySelector('.step-indicator');
   const formArea = document.querySelector('.form-area');
   const navButtons = document.getElementById('navButtons');
 
-  if (state.activeMode === 'exploreUrl') {
-    editor?.classList.remove('hidden');
+  if (state.activeMode === 'searchUrl') {
+    searchEditor?.classList.remove('hidden');
+    exploreEditor?.classList.add('hidden');
+    ruleTabs?.classList.add('hidden');
+    stepIndicator?.classList.add('hidden');
+    formArea?.classList.add('hidden');
+    navButtons?.classList.add('hidden');
+  } else if (state.activeMode === 'exploreUrl') {
+    searchEditor?.classList.add('hidden');
+    exploreEditor?.classList.remove('hidden');
     ruleTabs?.classList.add('hidden');
     stepIndicator?.classList.add('hidden');
     formArea?.classList.add('hidden');
     navButtons?.classList.add('hidden');
   } else {
-    editor?.classList.add('hidden');
+    searchEditor?.classList.add('hidden');
+    exploreEditor?.classList.add('hidden');
     ruleTabs?.classList.remove('hidden');
     stepIndicator?.classList.remove('hidden');
     formArea?.classList.remove('hidden');
@@ -151,11 +166,11 @@ function loadState() {
       state = { ...state, ...result.legadoSourceState };
       document.getElementById('bookSourceName').value = state.bookSourceName || '';
       document.getElementById('bookSourceUrl').value = state.bookSourceUrl || '';
-      document.getElementById('searchUrl').value = state.searchUrl || '';
+      document.getElementById('searchUrlTemplate').value = state.searchUrl || '';
       setTimeout(() => {
         autoResizeTextarea(document.getElementById('bookSourceName'));
         autoResizeTextarea(document.getElementById('bookSourceUrl'));
-        autoResizeTextarea(document.getElementById('searchUrl'));
+        autoResizeTextarea(document.getElementById('searchUrlTemplate'));
       }, 0);
     }
     renderModeTabs();
@@ -171,7 +186,12 @@ function loadState() {
 function saveState() {
   state.bookSourceName = document.getElementById('bookSourceName').value;
   state.bookSourceUrl = document.getElementById('bookSourceUrl').value;
-  state.searchUrl = document.getElementById('searchUrl').value;
+  state.searchUrl = document.getElementById('searchUrlTemplate').value;
+  chrome.storage.local.set({ legadoSourceState: state });
+}
+
+function syncSearchUrlState() {
+  state.searchUrl = document.getElementById('searchUrlTemplate').value;
   chrome.storage.local.set({ legadoSourceState: state });
 }
 
@@ -190,7 +210,8 @@ function renderRuleTypeTabs() {
   const container = document.getElementById('ruleTypeTabs');
   if (!container) return;
 
-  container.innerHTML = Object.entries(RULE_TYPES).map(([key, cfg]) => {
+  container.innerHTML = RULE_TYPE_ORDER.map(key => {
+    const cfg = RULE_TYPES[key];
     const active = key === state.activeRuleType ? ' active' : '';
     return `<button class="rule-tab${active}" data-type="${key}">${cfg.label}</button>`;
   }).join('');
@@ -705,16 +726,37 @@ function bindEvents() {
 
   document.getElementById('bookSourceName').addEventListener('input', saveState);
   document.getElementById('bookSourceUrl').addEventListener('input', saveState);
-  document.getElementById('searchUrl').addEventListener('input', saveState);
 
   autoResizeTextarea(document.getElementById('bookSourceName'));
   autoResizeTextarea(document.getElementById('bookSourceUrl'));
-  autoResizeTextarea(document.getElementById('searchUrl'));
+  autoResizeTextarea(document.getElementById('searchUrlTemplate'));
 
   document.getElementById('autoFillBtn').addEventListener('click', handleAutoFill);
   document.getElementById('checkUpdateBtn').addEventListener('click', handleCheckUpdate);
   document.getElementById('closeUpdateBtn').addEventListener('click', () => {
     document.getElementById('updateModal').classList.add('hidden');
+  });
+
+  document.getElementById('captureSearchUrlBtn').addEventListener('click', handleCaptureSearchUrl);
+  document.getElementById('searchCaptureCancelListenBtn').addEventListener('click', handleCancelSearchListen);
+  document.getElementById('searchMethod').addEventListener('change', onSearchConfigChange);
+  document.getElementById('searchCharset').addEventListener('input', rebuildSearchUrlFromForm);
+  document.getElementById('searchBodyTemplate').addEventListener('input', () => {
+    autoResizeTextarea(document.getElementById('searchBodyTemplate'));
+    rebuildSearchUrlFromForm();
+  });
+  document.getElementById('searchUrlTemplate').addEventListener('input', () => {
+    autoResizeTextarea(document.getElementById('searchUrlTemplate'));
+    state.searchConfig = null;
+    saveState();
+  });
+  document.getElementById('insertPagePlaceholderBtn').addEventListener('click', () => {
+    const el = document.getElementById('searchUrlTemplate');
+    const pos = el.selectionStart;
+    const before = el.value.substring(0, pos);
+    const after = el.value.substring(pos);
+    el.value = before + '{{page}}' + after;
+    el.focus();
   });
 }
 
@@ -939,8 +981,9 @@ function handleReset() {
     toc: { currentStep: 0, fields: {}, fieldStates: {}, bookListSelector: null },
     content: { currentStep: 0, fields: {}, fieldStates: {}, bookListSelector: null },
   };
-  state.activeRuleType = 'explore';
+  state.activeRuleType = 'search';
   state.searchUrl = '';
+  state.searchConfig = null;
   state.bookSourceName = '';
   state.bookSourceUrl = '';
 
@@ -948,7 +991,10 @@ function handleReset() {
 
   document.getElementById('bookSourceName').value = '';
   document.getElementById('bookSourceUrl').value = '';
-  document.getElementById('searchUrl').value = '';
+  document.getElementById('searchUrlTemplate').value = '';
+  document.getElementById('searchMethod').value = 'GET';
+  document.getElementById('searchCharset').value = '';
+  document.getElementById('searchBodyTemplate').value = '';
 
   if (typeof window.clearExploreEditor === 'function') {
     window.clearExploreEditor();
@@ -1084,6 +1130,16 @@ function bindMessageListener() {
       case 'showToast':
         showToast(message.message, message.type);
         break;
+      case 'searchCaptured':
+        handleSearchCaptured(message);
+        // Stop the content script capture
+        if (searchCaptureTabId) {
+          chrome.tabs.sendMessage(searchCaptureTabId, { action: 'stopSearchCapture' });
+        }
+        break;
+      case 'searchCaptureForms':
+        handleSearchCaptureForms(message);
+        break;
       default:
         break;
     }
@@ -1157,4 +1213,240 @@ function showToast(message, type = 'warning') {
       setTimeout(() => toast.remove(), 300);
     }
   }, 4000);
+}
+
+/* ============================================
+   Search URL Capture
+   ============================================ */
+
+let searchCaptureTabId = null;
+let searchCaptureReceived = false; // Track if we already received a capture
+let searchCaptureCancelled = false; // Track if user cancelled the capture
+
+function handleCaptureSearchUrl() {
+  state.activeMode = 'searchUrl';
+  saveState();
+  renderModeTabs();
+  updateEditorVisibility();
+
+  searchCaptureCancelled = false; // Reset cancelled flag for new capture
+
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (!tabs[0]) return;
+    searchCaptureTabId = tabs[0].id;
+
+    // Show modal with listening state
+    openSearchCaptureModal();
+    showSearchCaptureListening();
+
+    // Inject content script if needed, then start capture
+    injectSearchCaptureScript(tabs[0].id, () => {
+      chrome.tabs.sendMessage(tabs[0].id, { action: 'startSearchCapture' }, (response) => {
+        if (chrome.runtime.lastError) {
+          showToast('无法注入脚本，请确认当前页面可访问', 'error');
+          closeSearchCaptureModal();
+        }
+      });
+    });
+  });
+}
+
+function injectSearchCaptureScript(tabId, callback) {
+  const inject = typeof chrome.scripting !== 'undefined'
+    ? () => chrome.scripting.executeScript({
+        target: { tabId },
+        files: ['content/search-capture.js'],
+      })
+    : () => new Promise((resolve) => {
+        chrome.tabs.executeScript(tabId, { file: 'content/search-capture.js' }, resolve);
+      });
+
+  inject().then(callback).catch(() => {
+    showToast('脚本注入失败', 'error');
+    closeSearchCaptureModal();
+  });
+}
+
+function handleCancelSearchListen() {
+  if (searchCaptureTabId) {
+    chrome.tabs.sendMessage(searchCaptureTabId, { action: 'stopSearchCapture' });
+  }
+  searchCaptureCancelled = true; // Prevent subsequent searchCaptureForms from filling
+  closeSearchCaptureModal();
+}
+
+function openSearchCaptureModal() {
+  searchCaptureReceived = false;
+  document.getElementById('searchCaptureListening').classList.add('hidden');
+  document.getElementById('searchCaptureForm').classList.remove('hidden');
+  // Auto-resize textareas
+  autoResizeTextarea(document.getElementById('searchUrlTemplate'));
+  autoResizeTextarea(document.getElementById('searchBodyTemplate'));
+}
+
+function closeSearchCaptureModal() {
+  document.getElementById('searchCaptureListening').classList.add('hidden');
+  document.getElementById('searchCaptureForm').classList.remove('hidden');
+  searchCaptureTabId = null;
+}
+
+function showSearchCaptureListening() {
+  document.getElementById('searchCaptureListening').classList.remove('hidden');
+  document.getElementById('searchCaptureForm').classList.add('hidden');
+}
+
+function showSearchCaptureForm(data) {
+  document.getElementById('searchCaptureListening').classList.add('hidden');
+  document.getElementById('searchCaptureForm').classList.remove('hidden');
+
+  const methodEl = document.getElementById('searchMethod');
+  const urlEl = document.getElementById('searchUrlTemplate');
+  const charsetEl = document.getElementById('searchCharset');
+  const bodyEl = document.getElementById('searchBodyTemplate');
+  const bodyField = document.getElementById('searchBodyField');
+
+  methodEl.value = data.method || 'GET';
+  charsetEl.value = data.charset || 'utf-8';
+  bodyEl.value = data.body || '';
+
+  // Build complete Legado-format search URL
+  const method = methodEl.value;
+  const charset = charsetEl.value;
+  const body = bodyEl.value;
+  const url = data.url || '';
+
+  if (method === 'POST' || charset !== 'utf-8') {
+    // POST or non-UTF8: use JSON format
+    const config = {};
+    config.charset = charset;
+    config.method = method;
+    if (method === 'POST' && body) {
+      config.body = body;
+    }
+    urlEl.value = url + ',' + JSON.stringify(config);
+    bodyField.classList.remove('hidden');
+  } else {
+    // Simple GET UTF-8
+    urlEl.value = url;
+    bodyField.classList.add('hidden');
+  }
+
+  // Auto-resize textareas
+  autoResizeTextarea(urlEl);
+  autoResizeTextarea(bodyEl);
+  syncSearchUrlState();
+}
+
+function onSearchConfigChange() {
+  const method = document.getElementById('searchMethod').value;
+  const bodyField = document.getElementById('searchBodyField');
+  // POST Body 始终显示
+  rebuildSearchUrlFromForm();
+}
+
+/**
+ * Rebuild the search URL textarea when user edits method/charset/body in the capture form
+ */
+function rebuildSearchUrlFromForm() {
+  const urlEl = document.getElementById('searchUrlTemplate');
+  const methodEl = document.getElementById('searchMethod');
+  const charsetEl = document.getElementById('searchCharset');
+  const bodyEl = document.getElementById('searchBodyTemplate');
+
+  const method = methodEl.value;
+  const charset = charsetEl.value;
+  const body = bodyEl.value;
+
+  // Extract base URL (everything before the first comma+JSON)
+  let baseUrl = urlEl.value || '';
+  const commaIdx = baseUrl.indexOf(',{');
+  if (commaIdx !== -1) {
+    baseUrl = baseUrl.substring(0, commaIdx);
+  }
+
+  if (method === 'POST' || charset !== 'utf-8') {
+    const config = {};
+    config.charset = charset;
+    config.method = method;
+    if (method === 'POST' && body) {
+      config.body = body;
+    }
+    urlEl.value = baseUrl + ',' + JSON.stringify(config);
+  } else {
+    urlEl.value = baseUrl;
+  }
+
+  syncSearchUrlState();
+}
+
+function handleSearchCaptureConfirm() {
+  const url = document.getElementById('searchUrlTemplate').value.trim();
+
+  if (!url) {
+    showToast('请输入搜索 URL', 'warning');
+    return;
+  }
+
+  // 下方搜索 URL 输入框作为唯一数据源
+  const searchUrlEl = document.getElementById('searchUrlTemplate');
+  searchUrlEl.value = url;
+  autoResizeTextarea(searchUrlEl);
+
+  // Save state
+  const method = document.getElementById('searchMethod').value;
+  const charset = document.getElementById('searchCharset').value.trim() || 'utf-8';
+  const body = document.getElementById('searchBodyTemplate').value.trim();
+  state.searchConfig = { method, url, charset, body, pageTemplate: '' };
+  saveState();
+
+  showToast('搜索 URL 已更新', 'info');
+  closeSearchCaptureModal();
+}
+
+function handleSearchCaptured(message) {
+  // Called when a search request is captured
+  searchCaptureReceived = true;
+  console.log('[popup] searchCaptured received:', {
+    method: message.method,
+    url: message.url,
+    charset: message.charset,
+    body: message.body,
+  });
+  showSearchCaptureForm({
+    method: message.method,
+    url: message.url,
+    charset: message.charset,
+    body: message.body,
+    forms: message.forms,
+  });
+}
+
+function handleSearchCaptureForms(message) {
+  // Fallback: called when forms are detected but no request was captured
+  // Skip if we already received searchCaptured (don't overwrite correct data)
+  // Skip if user cancelled the capture
+  if (searchCaptureReceived || searchCaptureCancelled) return;
+
+  if (message.forms && message.forms.length > 0) {
+    const form = message.forms.find(f => f.hasSearchInput) || message.forms[0];
+    if (form && form.action) {
+      showSearchCaptureForm({
+        method: form.method,
+        url: form.action,
+        charset: form.charset,
+        body: '',
+        forms: message.forms,
+      });
+      return;
+    }
+  }
+
+  // No forms found, show blank form
+  showSearchCaptureForm({
+    method: 'GET',
+    url: '',
+    charset: message.charset || 'utf-8',
+    body: '',
+    forms: [],
+  });
 }

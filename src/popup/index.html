@@ -19,12 +19,48 @@
       <div class="header-meta">
         <textarea id="bookSourceName" placeholder="书源名称" class="input-name" rows="1"></textarea>
         <textarea id="bookSourceUrl" placeholder="书源网站URL" class="input-url" rows="1"></textarea>
-        <textarea id="searchUrl" placeholder="搜索页URL (如: {{key}})" class="input-url" rows="1"></textarea>
       </div>
     </header>
 
     <div class="rule-type-tabs" id="modeTabs"></div>
     <div class="rule-type-tabs" id="ruleTypeTabs"></div>
+
+    <div id="searchUrlEditor" class="search-url-editor hidden">
+      <div class="search-url-row">
+        <button id="captureSearchUrlBtn" class="btn btn-action btn-capture-search" title="从当前页面捕获搜索请求">🔍 捕获</button>
+      </div>
+      <div id="searchCapturePanel" class="search-capture-panel">
+        <div id="searchCaptureListening" class="search-capture-listening hidden">
+          <div class="search-capture-spinner"></div>
+          <p>请点击网站的"搜索"按钮</p>
+          <button id="searchCaptureCancelListenBtn" class="btn btn-secondary">取消</button>
+        </div>
+        <div id="searchCaptureForm" class="search-capture-form">
+          <div class="search-field">
+            <label>请求方法</label>
+            <select id="searchMethod" class="search-select">
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+            </select>
+          </div>
+          <div class="search-field">
+            <label>charset</label>
+            <input type="text" id="searchCharset" class="input-field" value="utf-8" placeholder="utf-8 / gbk">
+          </div>
+          <div class="search-field" id="searchBodyField">
+            <label>请求体</label>
+            <textarea id="searchBodyTemplate" class="input-field search-url-output" rows="1" placeholder="POST body"></textarea>
+          </div>
+          <div class="search-field">
+            <div class="search-url-label-row">
+              <label>搜索 URL</label>
+              <button id="insertPagePlaceholderBtn" class="btn btn-action btn-sm" title="插入 {{page}} 占位符">{{page}}</button>
+            </div>
+            <textarea id="searchUrlTemplate" class="input-field search-url-output" rows="1" placeholder="捕获后自动填充"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div id="exploreUrlEditor" class="explore-editor hidden">
       <div class="editor-toolbar">
@@ -263,6 +299,7 @@
         </div>
       </div>
     </div>
+
   </div>
   <script src="batch-url-utils.js"></script>
   <script src="explore-url-editor.js"></script>

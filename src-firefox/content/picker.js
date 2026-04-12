@@ -33,56 +33,15 @@
    * @param {string} type - Toast type: 'warning' | 'error' | 'info'
    */
   function showToast(message, type = 'warning') {
-    // Send message to popup to show toast in sidebar
+    // 仅在侧边栏显示提示，避免网页与侧边栏重复弹出。
     chrome.runtime.sendMessage({
       action: 'showToast',
       message: message,
       type: type
-    }).catch(() => {
-      // If popup is not available, show locally (fallback)
-      showToastLocal(message, type);
+    }, () => {
+      // 忽略无响应错误，不在网页中回退显示 toast。
+      void chrome.runtime.lastError;
     });
-  }
-
-  /**
-   * Local toast fallback (used when popup unavailable)
-   */
-  function showToastLocal(message, type = 'warning') {
-    const colors = {
-      warning: '#faad14',
-      error: '#ff4d4f',
-      info: '#1890ff'
-    };
-
-    let container = document.getElementById('picker-toast-container');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'picker-toast-container';
-      container.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        z-index: 10001;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        pointer-events: none;
-      `;
-      document.body.appendChild(container);
-    }
-
-    const toast = document.createElement('div');
-    toast.className = `picker-toast picker-toast-${type}`;
-    toast.textContent = message;
-    toast.style.background = colors[type] || colors.warning;
-    container.appendChild(toast);
-
-    setTimeout(() => {
-      if (toast && toast.parentNode) {
-        toast.style.animation = 'toast-out 0.3s ease forwards';
-        setTimeout(() => toast.remove(), 300);
-      }
-    }, 4000);
   }
 
   /**
@@ -661,7 +620,7 @@
       items: exploreCollectedItems,
     });
 
-    showToast(`已发送 ${exploreCollectedItems.length} 项到侧边栏`, 'info');
+    showToast(`已发送 ${exploreCollectedItems.length} 项`, 'info');
     exploreCollectedItems = [];
   }
 
