@@ -1018,7 +1018,7 @@ window.togglePreviews = function(header) {
   }
 };
 
-function toLegadoRule(selector, fieldKey, fieldData) {
+function toLegadoRule(selector, fieldKey, fieldData, tagName) {
   const listFields = ['bookList', 'chapterList'];
   const isListField = listFields.includes(fieldKey);
 
@@ -1027,9 +1027,24 @@ function toLegadoRule(selector, fieldKey, fieldData) {
   const hasSingleIndex = fieldData?.listIndex?.single !== undefined && fieldData?.listIndex?.single !== '';
   const hasIndex = isListField ? hasListIndex : hasSingleIndex;
 
-  // No index: return pure selector (same as list fields)
+  // Helper: build @ selector with smart attribute detection
+  function buildAtSelector(sel, key, tag) {
+    const linkFields = ['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'];
+    if (linkFields.includes(key)) {
+      return tag === 'a' ? sel + '@href' : sel + ' a@href';
+    } else if (key === 'coverUrl') {
+      return tag === 'img' ? sel + '@src' : sel + ' img@src';
+    } else {
+      return sel + '@text';
+    }
+  }
+
+  // No index: return selector with @ extraction suffix
   if (!hasIndex) {
-    return selector;
+    if (isListField) {
+      return selector;
+    }
+    return buildAtSelector(selector, fieldKey, tagName);
   }
 
   // Has index: generate JS code
@@ -1043,25 +1058,25 @@ function toLegadoRule(selector, fieldKey, fieldData) {
   }
 
   if (isListField) {
-    // Note: List fields (bookList/chapterList) typically don't reach here because
-    // they usually go through handleIndexApply() after index input.
-    // This branch exists as defensive coding for edge cases.
     return selector;
   }
 
   // Non-list field with index
   const index = singleVal > 0 ? singleVal - 1 : singleVal;
 
-  // If index is 0 (default), no need to generate JS - return pure selector
+  // If index is 0 (default), no need to generate JS - return selector with @ suffix
   if (index === 0) {
-    return selector;
+    return buildAtSelector(selector, fieldKey, tagName);
   }
 
   let returnExpr;
-  if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(fieldKey)) {
-    returnExpr = `String(list.get(${index}).attr("href"))`;
+  const linkFields = ['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'];
+  if (linkFields.includes(fieldKey)) {
+    const childSel = tagName === 'a' ? '' : ' a';
+    returnExpr = `String(list.select("${selector}${childSel}").get(${index}).attr("href"))`;
   } else if (fieldKey === 'coverUrl') {
-    returnExpr = `String(list.get(${index}).attr("src"))`;
+    const childSel = tagName === 'img' ? '' : ' img';
+    returnExpr = `String(list.select("${selector}${childSel}").get(${index}).attr("src"))`;
   } else {
     returnExpr = `String(list.get(${index}).text())`;
   }
@@ -1084,7 +1099,7 @@ function handleSelectorSelected(message) {
 
   const rule = getRuleState();
   const fieldData = rule.fields[step] || {};
-  const legadoRule = toLegadoRule(selector, step, fieldData);
+  const legadoRule = toLegadoRule(selector, step, fieldData, message.tagName);
 
   rule.fields[step] = {
     value: legadoRule,
