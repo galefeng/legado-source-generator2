@@ -38,6 +38,14 @@
 
 > ⚠️ **注意**：本扩展主要基于 Chrome (MV3) 开发和测试，Firefox 版本（MV2）为适配移植版本，可能存在未知 bug。如遇问题，请优先使用 Chrome / Edge 版本。
 
+#### 方式一：从扩展商店安装（推荐）
+
+1. 打开 Firefox，访问 [Firefox 扩展商店](https://addons.mozilla.org/)
+2. 搜索 **Legado Source Generator**
+3. 点击"添加到 Firefox"完成安装
+
+#### 方式二：手动加载（开发/测试）
+
 1. 打开浏览器，访问 `about:debugging#/runtime/this-firefox`
 2. 点击"临时载入附加组件"
 3. 选择 `src-firefox/manifest.json` 文件
