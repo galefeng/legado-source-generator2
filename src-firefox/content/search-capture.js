@@ -14,6 +14,9 @@
   let originalFetch = window.fetch;
   let originalXHROpen = XMLHttpRequest.prototype.open;
   let originalXHRSend = XMLHttpRequest.prototype.send;
+  let fetchHijacked = false;
+  let xhrHijacked = false;
+  let fetchHijackByDefine = false;
 
   // Preset keyword to fill into the search input
   const PRESET_KEYWORD = '我的';
@@ -269,11 +272,11 @@
     let encodedKeyword = '{{key}}';
     let body = '';
 
-    for (const [key, value] of formData.entries()) {
+    formData.forEach((value, key) => {
       const encodedKey = encodeURIComponent(key);  // keys are always UTF-8 safe
       const encodedValue = value === PRESET_KEYWORD ? '{{key}}' : encodeTemplateValue(value);
       params.push(encodedKey + '=' + encodedValue);
-    }
+    });
 
     const queryString = params.join('&');
     if (method === 'GET') {
@@ -452,7 +455,7 @@
      ═══════════════════════════════════ */
 
   function hijackFetch() {
-    window.fetch = function () {
+    const wrappedFetch = function () {
       const input = arguments[0];
       const init = arguments[1] || {};
       let method = (init.method || 'GET').toUpperCase();
@@ -473,6 +476,26 @@
       captureRequest(method, url, body);
       return originalCall;
     };
+
+    try {
+      window.fetch = wrappedFetch;
+      fetchHijacked = true;
+      fetchHijackByDefine = false;
+    } catch (e) {
+      try {
+        Object.defineProperty(window, 'fetch', {
+          value: wrappedFetch,
+          configurable: true,
+          writable: true,
+        });
+        fetchHijacked = true;
+        fetchHijackByDefine = true;
+      } catch (e2) {
+        fetchHijacked = false;
+        fetchHijackByDefine = false;
+        console.warn('[search-capture] Unable to hijack fetch:', e2?.message || e2);
+      }
+    }
   }
 
   /* ═══════════════════════════════════
@@ -503,6 +526,8 @@
       captureRequest(currentMethod, currentUrl, currentBody);
       return originalXHRSend.apply(this, arguments);
     };
+
+    xhrHijacked = true;
   }
 
   /* ═══════════════════════════════════
@@ -609,9 +634,27 @@
   }
 
   function restoreOriginals() {
-    window.fetch = originalFetch;
-    XMLHttpRequest.prototype.open = originalXHROpen;
-    XMLHttpRequest.prototype.send = originalXHRSend;
+    if (fetchHijacked) {
+      try {
+        if (fetchHijackByDefine) {
+          Object.defineProperty(window, 'fetch', {
+            value: originalFetch,
+            configurable: true,
+            writable: true,
+          });
+        } else {
+          window.fetch = originalFetch;
+        }
+      } catch (e) {}
+      fetchHijacked = false;
+      fetchHijackByDefine = false;
+    }
+
+    if (xhrHijacked) {
+      XMLHttpRequest.prototype.open = originalXHROpen;
+      XMLHttpRequest.prototype.send = originalXHRSend;
+      xhrHijacked = false;
+    }
   }
 
   function startUrlPolling() {

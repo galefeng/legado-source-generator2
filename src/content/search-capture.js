@@ -269,11 +269,11 @@
     let encodedKeyword = '{{key}}';
     let body = '';
 
-    for (const [key, value] of formData.entries()) {
+    formData.forEach((value, key) => {
       const encodedKey = encodeURIComponent(key);  // keys are always UTF-8 safe
       const encodedValue = value === PRESET_KEYWORD ? '{{key}}' : encodeTemplateValue(value);
       params.push(encodedKey + '=' + encodedValue);
-    }
+    });
 
     const queryString = params.join('&');
     if (method === 'GET') {

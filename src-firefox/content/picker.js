@@ -469,6 +469,7 @@
     currentStep = data?.step || 'bookList';
     isListField = data?.isListField || false;
     firstItemElement = null;
+    selectedElement = null;
     rootElement = null;
     listItemSelector = data?.itemSelector || '';
 
@@ -562,12 +563,35 @@
 
     injectPickerStyles();
 
+    document.addEventListener('mouseover', onExploreMouseOver, true);
+    document.addEventListener('mouseout', onExploreMouseOut, true);
     document.addEventListener('click', onExploreClick, true);
     document.addEventListener('keydown', onExploreKeydown, true);
 
     chrome.runtime.sendMessage({
       action: 'exploreCollectionStarted',
     });
+  }
+
+  let exploreHoveredEl = null;
+  function onExploreMouseOver(e) {
+    if (!isExploreCollectorActive) return;
+    const el = e.target.closest('a');
+    if (!el) return;
+    if (exploreHoveredEl && exploreHoveredEl !== el) exploreHoveredEl.classList.remove('picker-hover');
+    exploreHoveredEl = el;
+    el.classList.add('picker-hover');
+    chrome.runtime.sendMessage({
+      action: 'exploreElementHover',
+      elementInfo: `<a.${el.className ? el.className.trim().split(/\s+/)[0] : ''}>`,
+      elementText: el.textContent.trim().substring(0, 80),
+    });
+  }
+
+  function onExploreMouseOut(e) {
+    if (!isExploreCollectorActive) return;
+    const el = e.target.closest('a');
+    if (el) el.classList.remove('picker-hover');
   }
 
   function onExploreClick(e) {
@@ -612,8 +636,14 @@
 
   function finishExploreCollection() {
     isExploreCollectorActive = false;
+    document.removeEventListener('mouseover', onExploreMouseOver, true);
+    document.removeEventListener('mouseout', onExploreMouseOut, true);
     document.removeEventListener('click', onExploreClick, true);
     document.removeEventListener('keydown', onExploreKeydown, true);
+    if (exploreHoveredEl) {
+      exploreHoveredEl.classList.remove('picker-hover');
+      exploreHoveredEl = null;
+    }
 
     chrome.runtime.sendMessage({
       action: 'exploreCollected',
@@ -625,8 +655,8 @@
   }
 
   /**
-    * Handle incoming messages from popup
-    */
+   * Handle incoming messages from popup
+   */
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('Picker received message:', message);
 
@@ -653,6 +683,12 @@
 
       case 'getCurrentStep':
         sendResponse({ step: currentStep });
+        break;
+
+      case 'startSearchCapture':
+      case 'stopSearchCapture':
+      case 'getSearchForms':
+        sendResponse({ success: false, ignored: true });
         break;
 
       default:

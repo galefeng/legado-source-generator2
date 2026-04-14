@@ -411,9 +411,19 @@ function reInjectContentScript(tabId, step, isListField, rootSelector, itemSelec
         target: { tabId },
         files: ['lib/selector-generator.js', 'content/picker.js'],
       })
-    : () => new Promise((resolve) => {
-        chrome.tabs.executeScript(tabId, { file: 'lib/selector-generator.js' }, () => {
-          chrome.tabs.executeScript(tabId, { file: 'content/picker.js' }, resolve);
+    : () => new Promise((resolve, reject) => {
+        chrome.tabs.executeScript(tabId, { file: '/lib/selector-generator.js' }, () => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          chrome.tabs.executeScript(tabId, { file: '/content/picker.js' }, () => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+              return;
+            }
+            resolve();
+          });
         });
       });
 
@@ -1031,6 +1041,7 @@ function toLegadoRule(selector, fieldKey, fieldData, tagName) {
   function buildAtSelector(sel, key, tag) {
     const linkFields = ['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'];
     if (linkFields.includes(key)) {
+      // If the selected element is already a link, use it directly
       return tag === 'a' ? sel + '@href' : sel + ' a@href';
     } else if (key === 'coverUrl') {
       return tag === 'img' ? sel + '@src' : sel + ' img@src';
@@ -1058,6 +1069,9 @@ function toLegadoRule(selector, fieldKey, fieldData, tagName) {
   }
 
   if (isListField) {
+    // Note: List fields (bookList/chapterList) typically don't reach here because
+    // they usually go through handleIndexApply() after index input.
+    // This branch exists as defensive coding for edge cases.
     return selector;
   }
 
@@ -1294,18 +1308,13 @@ function handleCaptureSearchUrl() {
 }
 
 function injectSearchCaptureScript(tabId, callback) {
-  const inject = typeof chrome.scripting !== 'undefined'
-    ? () => chrome.scripting.executeScript({
-        target: { tabId },
-        files: ['content/search-capture.js'],
-      })
-    : () => new Promise((resolve) => {
-        chrome.tabs.executeScript(tabId, { file: 'content/search-capture.js' }, resolve);
-      });
-
-  inject().then(callback).catch(() => {
-    showToast('脚本注入失败', 'error');
-    closeSearchCaptureModal();
+  chrome.tabs.executeScript(tabId, { file: '/content/search-capture.js' }, () => {
+    if (chrome.runtime.lastError) {
+      showToast('脚本注入失败: ' + chrome.runtime.lastError.message, 'error');
+      closeSearchCaptureModal();
+    } else {
+      callback();
+    }
   });
 }
 
@@ -1381,6 +1390,7 @@ function showSearchCaptureForm(data) {
 
 function onSearchConfigChange() {
   const method = document.getElementById('searchMethod').value;
+  const bodyField = document.getElementById('searchBodyField');
   // POST Body 始终显示
   rebuildSearchUrlFromForm();
 }

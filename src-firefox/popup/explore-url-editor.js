@@ -355,8 +355,8 @@ function startExploreCollection() {
     const tabId = tabs[0].id;
     chrome.tabs.sendMessage(tabId, { action: 'startExploreCollector' }, (response) => {
       if (chrome.runtime.lastError) {
-        chrome.tabs.executeScript(tabId, { file: 'content/picker.js' }, () => {
-          chrome.tabs.insertCSS(tabId, { file: 'content/picker.css' }, () => {
+        chrome.tabs.executeScript(tabId, { file: '/content/picker.js' }, () => {
+          chrome.tabs.insertCSS(tabId, { file: '/content/picker.css' }, () => {
             setTimeout(() => {
               chrome.tabs.sendMessage(tabId, { action: 'startExploreCollector' });
             }, 200);
@@ -678,6 +678,20 @@ function renderPropsPanel() {
   bind('propAlignSelf', 'layout_alignSelf', el => el.value);
   bind('propFlexBasisPercent', 'layout_flexBasisPercent', el => parseFloat(el.value) ?? -1);
   bind('propWrapBefore', 'layout_wrapBefore', el => el.checked);
+
+  const propTitle = document.getElementById('propTitle');
+  const propUrl = document.getElementById('propUrl');
+  if (propTitle) autoResize(propTitle);
+  if (propUrl) autoResize(propUrl);
+}
+
+function autoResize(el) {
+  const resize = () => {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  };
+  el.addEventListener('input', resize);
+  resize();
 }
 
 function exportExploreJson() {
