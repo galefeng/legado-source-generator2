@@ -682,6 +682,12 @@
         sendResponse({ step: currentStep });
         break;
 
+      case 'startSearchCapture':
+      case 'stopSearchCapture':
+      case 'getSearchForms':
+        sendResponse({ success: false, ignored: true });
+        break;
+
       default:
         // Unknown message
         console.warn('Unknown message action:', message.action);
