@@ -681,6 +681,26 @@
         sendResponse({ success: true });
         break;
 
+      case 'previewSelector':
+        try {
+          const previewSelector = message.selector;
+          const previewElements = document.querySelectorAll(previewSelector);
+          const previewCount = previewElements.length;
+          const previewLimit = Math.min(previewCount, 50);
+          const previewResults = [];
+          for (let i = 0; i < previewLimit; i++) {
+            const el = previewElements[i];
+            previewResults.push({
+              text: el.textContent ? el.textContent.trim().replace(/\s+/g, ' ').substring(0, 150) : '',
+              html: el.outerHTML,
+            });
+          }
+          sendResponse({ previews: previewResults, count: previewCount });
+        } catch (e) {
+          sendResponse({ previews: [], count: 0 });
+        }
+        break;
+
       case 'getCurrentStep':
         sendResponse({ step: currentStep });
         break;

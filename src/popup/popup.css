@@ -403,6 +403,7 @@ body {
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
+  text-align: center;
 }
 
 .btn:disabled {
@@ -1638,4 +1639,131 @@ body {
   font-size: 11px;
   line-height: 1.4;
   min-height: 56px;
+}
+
+/* ── Debug Panel ─────────────────────────── */
+
+.debug-panel {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.debug-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.debug-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.debug-config-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.debug-ip-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+}
+
+.debug-ip-part {
+  width: 52px;
+  flex: none;
+  text-align: center;
+  padding: 6px 4px !important;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.debug-ip-dot {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  flex: none;
+  line-height: 1;
+}
+
+.debug-port-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  flex: none;
+}
+
+.debug-port {
+  width: 72px;
+  flex: none;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.debug-hint-inline {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.debug-key-input {
+  width: 100%;
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.debug-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.debug-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.debug-result {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text);
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+
+.debug-result:empty::before {
+  content: "调试结果将在此显示...";
+  color: var(--text-muted);
+}
+
+.debug-result .debug-line {
+  margin: 0;
+}
+
+.debug-result .debug-line-error {
+  color: var(--danger);
+}
+
+.debug-result .debug-line-success {
+  color: var(--success);
+}
+
+.debug-result .debug-line-info {
+  color: var(--accent);
 }

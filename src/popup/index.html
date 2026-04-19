@@ -121,6 +121,38 @@
       </div>
     </div>
 
+    <div id="debugPanel" class="debug-panel hidden">
+      <div class="debug-section">
+        <label class="debug-label">连接设置 <span class="debug-hint-inline">（打开阅读→我的→Web服务→填入IP和端口号）</span></label>
+        <div class="debug-config-row">
+          <div class="debug-ip-group">
+            <input type="text" id="debugIp1" class="input-field debug-ip-part" maxlength="3" placeholder="192" inputmode="numeric">
+            <span class="debug-ip-dot">.</span>
+            <input type="text" id="debugIp2" class="input-field debug-ip-part" maxlength="3" placeholder="168" inputmode="numeric">
+            <span class="debug-ip-dot">.</span>
+            <input type="text" id="debugIp3" class="input-field debug-ip-part" maxlength="3" placeholder="1" inputmode="numeric">
+            <span class="debug-ip-dot">.</span>
+            <input type="text" id="debugIp4" class="input-field debug-ip-part" maxlength="3" placeholder="100" inputmode="numeric">
+          </div>
+          <span class="debug-port-label">:</span>
+          <input type="text" id="debugPort" class="input-field debug-input debug-port" placeholder="1122" inputmode="numeric">
+        </div>
+      </div>
+      <div class="debug-section">
+        <label class="debug-label">调试关键字</label>
+        <textarea id="debugKey" class="input-field debug-key-input" rows="1" placeholder="搜索关键字 / URL / ++URL / --URL（留空默认"我的"）"></textarea>
+        <div class="debug-hint">普通文本=搜索 &nbsp;|&nbsp; 分类名::URL=发现 &nbsp;|&nbsp; URL=详情 &nbsp;|&nbsp; ++URL=目录 &nbsp;|&nbsp; --URL=正文</div>
+      </div>
+      <div class="debug-actions">
+        <button id="debugStartBtn" class="btn btn-primary">开始调试</button>
+        <button id="debugStopBtn" class="btn btn-secondary" disabled>停止</button>
+      </div>
+      <div class="debug-section">
+        <label class="debug-label">调试结果</label>
+        <pre id="debugResult" class="debug-result"></pre>
+      </div>
+    </div>
+
     <div class="step-indicator">
       <span id="stepText">1/9: 书籍列表容器</span>
       <div id="fieldStatusSummary" class="field-status-summary"></div>

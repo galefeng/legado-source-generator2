@@ -403,6 +403,7 @@ body {
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
+  text-align: center;
 }
 
 .btn:disabled {
@@ -1639,3 +1640,5 @@ body {
   line-height: 1.4;
   min-height: 56px;
 }
+
+

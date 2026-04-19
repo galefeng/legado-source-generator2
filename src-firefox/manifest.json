@@ -1,13 +1,14 @@
 {
   "manifest_version": 2,
   "name": "Legado Source Generator",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Generate Legado book source rules from web pages",
   "permissions": [
     "activeTab",
     "storage",
     "<all_urls>"
   ],
+  "content_security_policy": "script-src 'self'; object-src 'self'; connect-src * ws: wss:",
   "browser_action": {
     "default_title": "Legado Source Generator"
   },

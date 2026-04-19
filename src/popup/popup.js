@@ -33,7 +33,7 @@ const RULE_TYPES = {
   bookInfo: {
     label: '详情页',
     fields: [
-      { key: 'name', label: '书名', required: true },
+      { key: 'name', label: '书名', required: false },
       { key: 'author', label: '作者', required: false },
       { key: 'kind', label: '分类', required: false },
       { key: 'wordCount', label: '字数', required: false },
@@ -83,6 +83,9 @@ let state = {
   bookSourceUrl: '',
   // Captured search configuration
   searchConfig: null, // { method, url, charset, body, pageTemplate }
+  // Debug configuration
+  debugIp: ['192', '168', '1', '100'],
+  debugPort: '1122',
 };
 
 function getFields() {
@@ -101,6 +104,7 @@ function renderModeTabs() {
     { key: 'searchUrl', label: '搜索URL' },
     { key: 'exploreUrl', label: '发现页URL' },
     { key: 'rules', label: '规则' },
+    { key: 'debug', label: '调试' },
   ];
 
   container.innerHTML = modes.map(m => {
@@ -129,6 +133,7 @@ function updateEditorVisibility() {
   if (state.activeMode === 'searchUrl') {
     searchEditor?.classList.remove('hidden');
     exploreEditor?.classList.add('hidden');
+    document.getElementById('debugPanel')?.classList.add('hidden');
     ruleTabs?.classList.add('hidden');
     stepIndicator?.classList.add('hidden');
     formArea?.classList.add('hidden');
@@ -136,6 +141,15 @@ function updateEditorVisibility() {
   } else if (state.activeMode === 'exploreUrl') {
     searchEditor?.classList.add('hidden');
     exploreEditor?.classList.remove('hidden');
+    document.getElementById('debugPanel')?.classList.add('hidden');
+    ruleTabs?.classList.add('hidden');
+    stepIndicator?.classList.add('hidden');
+    formArea?.classList.add('hidden');
+    navButtons?.classList.add('hidden');
+  } else if (state.activeMode === 'debug') {
+    searchEditor?.classList.add('hidden');
+    exploreEditor?.classList.add('hidden');
+    document.getElementById('debugPanel')?.classList.remove('hidden');
     ruleTabs?.classList.add('hidden');
     stepIndicator?.classList.add('hidden');
     formArea?.classList.add('hidden');
@@ -143,6 +157,7 @@ function updateEditorVisibility() {
   } else {
     searchEditor?.classList.add('hidden');
     exploreEditor?.classList.add('hidden');
+    document.getElementById('debugPanel')?.classList.add('hidden');
     ruleTabs?.classList.remove('hidden');
     stepIndicator?.classList.remove('hidden');
     formArea?.classList.remove('hidden');
@@ -167,6 +182,12 @@ function loadState() {
       document.getElementById('bookSourceName').value = state.bookSourceName || '';
       document.getElementById('bookSourceUrl').value = state.bookSourceUrl || '';
       document.getElementById('searchUrlTemplate').value = state.searchUrl || '';
+      const debugIp = state.debugIp || ['192', '168', '1', '100'];
+      document.getElementById('debugIp1').value = debugIp[0] || '';
+      document.getElementById('debugIp2').value = debugIp[1] || '';
+      document.getElementById('debugIp3').value = debugIp[2] || '';
+      document.getElementById('debugIp4').value = debugIp[3] || '';
+      document.getElementById('debugPort').value = state.debugPort || '1122';
       setTimeout(() => {
         autoResizeTextarea(document.getElementById('bookSourceName'));
         autoResizeTextarea(document.getElementById('bookSourceUrl'));
@@ -187,12 +208,190 @@ function saveState() {
   state.bookSourceName = document.getElementById('bookSourceName').value;
   state.bookSourceUrl = document.getElementById('bookSourceUrl').value;
   state.searchUrl = document.getElementById('searchUrlTemplate').value;
+  state.debugIp = [
+    document.getElementById('debugIp1').value,
+    document.getElementById('debugIp2').value,
+    document.getElementById('debugIp3').value,
+    document.getElementById('debugIp4').value,
+  ];
+  state.debugPort = document.getElementById('debugPort').value;
   chrome.storage.local.set({ legadoSourceState: state });
 }
 
 function syncSearchUrlState() {
   state.searchUrl = document.getElementById('searchUrlTemplate').value;
   chrome.storage.local.set({ legadoSourceState: state });
+}
+
+// ============================================
+//    Debug Functions
+// ============================================
+
+let debugWs = null;
+let debugMessages = [];
+let debugTimeout = null;
+let debugFinished = false;
+
+function handleDebugStart() {
+  const ipParts = [
+    document.getElementById('debugIp1').value.trim(),
+    document.getElementById('debugIp2').value.trim(),
+    document.getElementById('debugIp3').value.trim(),
+    document.getElementById('debugIp4').value.trim(),
+  ];
+  const host = ipParts.join('.');
+  const port = parseInt(document.getElementById('debugPort').value, 10) || 1122;
+  const key = document.getElementById('debugKey').value.trim() || '我的';
+  const resultEl = document.getElementById('debugResult');
+  const startBtn = document.getElementById('debugStartBtn');
+  const stopBtn = document.getElementById('debugStopBtn');
+
+  if (!host || ipParts.some(p => !p)) {
+    showToast('请输入完整的 Legado 服务器 IP', 'warning');
+    return;
+  }
+
+  // Get the JSON for the current book source
+  const sourceJson = generateJson();
+  if (!sourceJson.ruleSearch && !sourceJson.ruleExplore) {
+    showToast('请先配置至少一个规则页', 'warning');
+    return;
+  }
+
+  // Reset state
+  resultEl.textContent = '';
+  debugMessages = [];
+  debugFinished = false;
+
+  // Disable start, enable stop
+  startBtn.disabled = true;
+  stopBtn.disabled = false;
+
+  // Step 1: Save the book source via HTTP
+  appendDebugLine('正在保存书源到 Legado...', 'info');
+
+  const httpUrl = `http://${host}:${port}/saveBookSource`;
+  fetch(httpUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    body: JSON.stringify(sourceJson),
+  })
+    .then((res) => res.json())
+    .then((saveResult) => {
+      if (!saveResult.isSuccess) {
+        appendDebugLine(`保存失败: ${saveResult.errorMsg}`, 'error');
+        finishDebug(false);
+        return;
+      }
+      appendDebugLine('书源保存成功', 'success');
+      // Step 2: Connect to WebSocket
+      connectAndDebug(host, port, key, sourceJson);
+    })
+    .catch((err) => {
+      appendDebugLine(`保存失败: ${err.message}`, 'error');
+      finishDebug(false);
+    });
+}
+
+function connectAndDebug(host, port, key, sourceJson) {
+  const wsPort = port + 1;
+  const wsUrl = `ws://${host}:${wsPort}/bookSourceDebug`;
+
+  appendDebugLine(`正在连接调试服务器...`, 'info');
+
+  try {
+    debugWs = new WebSocket(wsUrl);
+  } catch (e) {
+    appendDebugLine(`WebSocket 创建失败: ${e.message}`, 'error');
+    finishDebug(false);
+    return;
+  }
+
+  debugWs.onopen = () => {
+    appendDebugLine('连接成功，正在发送调试请求...', 'info');
+    const tag = sourceJson.bookSourceUrl || sourceJson.sourceUrl || '';
+    debugWs.send(JSON.stringify({ tag, key }));
+  };
+
+  debugWs.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (Array.isArray(data)) {
+        data.forEach((msg) => appendDebugLine(msg, ''));
+      } else if (typeof data === 'string') {
+        appendDebugLine(data, '');
+      } else {
+        appendDebugLine(JSON.stringify(data, null, 2), '');
+      }
+    } catch {
+      appendDebugLine(event.data, '');
+    }
+  };
+
+  debugWs.onerror = () => {
+    if (!debugFinished) {
+      appendDebugLine('WebSocket 连接错误', 'error');
+    }
+  };
+
+  debugWs.onclose = () => {
+    if (!debugFinished) {
+      appendDebugLine('连接已关闭', 'info');
+      finishDebug(true);
+    }
+  };
+
+  // Auto-timeout after 90 seconds
+  debugTimeout = setTimeout(() => {
+    if (debugWs && (debugWs.readyState === WebSocket.OPEN || debugWs.readyState === WebSocket.CONNECTING)) {
+      appendDebugLine('调试超时，自动停止', 'info');
+      debugWs.close();
+    }
+  }, 90000);
+}
+
+function handleDebugStop() {
+  if (debugWs) {
+    appendDebugLine('正在停止...', 'info');
+    debugWs.close();
+    debugWs = null;
+  }
+  finishDebug(false);
+}
+
+function finishDebug(success) {
+  if (debugFinished) return;
+  debugFinished = true;
+
+  // Clear timeout
+  if (debugTimeout) {
+    clearTimeout(debugTimeout);
+    debugTimeout = null;
+  }
+
+  const startBtn = document.getElementById('debugStartBtn');
+  const stopBtn = document.getElementById('debugStopBtn');
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+
+  if (success) {
+    appendDebugLine('===== 调试完成 =====', 'success');
+  } else {
+    appendDebugLine('===== 调试结束 =====', 'error');
+  }
+}
+
+function appendDebugLine(text, type) {
+  const resultEl = document.getElementById('debugResult');
+  const line = document.createElement('div');
+  line.className = 'debug-line';
+  if (type === 'error') line.className += ' debug-line-error';
+  else if (type === 'success') line.className += ' debug-line-success';
+  else if (type === 'info') line.className += ' debug-line-info';
+  line.textContent = text;
+  resultEl.appendChild(line);
+  debugMessages.push(text);
+  resultEl.scrollTop = resultEl.scrollHeight;
 }
 
 function buildJsRule(body, returnsList = false) {
@@ -234,7 +433,13 @@ function updateStepIndicator() {
   const rule = getRuleState();
   const field = fields[rule.currentStep];
   const fieldState = rule.fieldStates[field.key] || 'pending';
-  const stateLabel = getStateLabel(fieldState);
+  const fieldData = rule.fields[field.key] || {};
+  let stateLabel;
+  if (fieldState === 'selected' && fieldData.state === 'manual') {
+    stateLabel = '(手动输入)';
+  } else {
+    stateLabel = getStateLabel(fieldState);
+  }
   const stepText = `${rule.currentStep + 1}/${fields.length}: ${field.label}${field.required ? ' *' : ''} ${stateLabel}`;
   document.getElementById('stepText').textContent = stepText;
 }
@@ -297,7 +502,7 @@ function renderFields() {
         ${fieldState === 'picking' ? `<button id="cancelBtn" class="btn btn-action btn-cancel">取消选择</button>` : ''}
         <button id="skipBtn" class="btn btn-action">跳过</button>
         <button id="manualBtn" class="btn btn-action ${fieldState === 'manual' ? 'btn-active' : ''}">
-          手动输入
+          ${fieldState === 'manual' ? '确认输入' : '手动输入'}
         </button>
         ${fieldState === 'selected' || fieldState === 'manual' ? `
         <button id="clearBtn" class="btn btn-action btn-clear">清除</button>
@@ -307,10 +512,10 @@ function renderFields() {
       ${isListField ? `
       <div class="list-hint">⚠️ <strong>需要选择两个同列表元素</strong>，自动提取交集生成选择器</div>
       ` : ''}
-      ${fieldState === 'selected' && fieldData.rawSelector ? `
+      ${fieldState === 'selected' && (fieldData.rawSelector || (fieldData.state === 'manual' && fieldData.value)) ? `
         <div class="selector-info">
-          <span class="selector-label">选择器:</span>
-          <code class="selector-value">${escapeHtml(fieldData.rawSelector)}</code>
+          <span class="selector-label">${fieldData.state === 'manual' ? '规则' : '选择器'}:</span>
+          <code class="selector-value">${escapeHtml(fieldData.state === 'manual' ? fieldData.value : fieldData.rawSelector)}</code>
         </div>
         ${filteredPreviews && filteredPreviews.length > 0 ? `
           <div class="preview-section">
@@ -478,18 +683,33 @@ function handleManualInput() {
   const fields = getFields();
   const rule = getRuleState();
   const field = fields[rule.currentStep];
+  const listFields = ['bookList', 'chapterList'];
 
   if (rule.fieldStates[field.key] === 'manual') {
-    rule.fieldStates[field.key] = 'pending';
+    // Confirm: manual → selected
+    rule.fieldStates[field.key] = 'selected';
+    // Trigger preview for confirmed manual input
+    const value = rule.fields[field.key]?.value?.trim();
+    if (value && !value.startsWith('<js>')) {
+      previewManualSelector(field.key, value);
+      // Set bookListSelector for list fields so subsequent fields can scope selection
+      if (listFields.includes(field.key)) {
+        rule.bookListSelector = value;
+      }
+    }
   } else {
+    // Enter manual mode: clear selector info from previous selection
     rule.fieldStates[field.key] = 'manual';
     rule.fields[field.key] = rule.fields[field.key] || { value: '', state: 'manual', rawSelector: '' };
     rule.fields[field.key].state = 'manual';
+    rule.fields[field.key].rawSelector = '';
+    rule.fields[field.key].previews = undefined;
   }
 
   saveState();
   renderFields();
   renderFieldStatusSummary();
+  updateStepIndicator();
 
   if (rule.fieldStates[field.key] === 'manual') {
     setTimeout(() => {
@@ -497,6 +717,38 @@ function handleManualInput() {
       if (input) input.focus();
     }, 50);
   }
+}
+
+function previewManualSelector(fieldKey, selector) {
+  // Validate selector locally first
+  try {
+    document.createElement('div').querySelector(selector);
+  } catch (e) {
+    return; // Invalid CSS selector, skip preview
+  }
+
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (!tabs[0]) return;
+    chrome.tabs.sendMessage(tabs[0].id, {
+      action: 'previewSelector',
+      selector: selector,
+    }, (response) => {
+      if (chrome.runtime.lastError || !response) return;
+      const rule = getRuleState();
+      const fieldData = rule.fields[fieldKey];
+      if (fieldData) {
+        fieldData.previews = response.previews || [];
+        fieldData.rawSelector = selector;
+        // Set bookListSelector for list fields so subsequent fields can scope selection
+        const listFields = ['bookList', 'chapterList'];
+        if (listFields.includes(fieldKey)) {
+          rule.bookListSelector = selector;
+        }
+        saveState();
+        renderFields();
+      }
+    });
+  });
 }
 
 function handleClearField() {
@@ -688,13 +940,19 @@ function renderFieldStatusSummary() {
   const rule = getRuleState();
   const summary = fields.map(f => {
     const fieldState = rule.fieldStates[f.key] || 'pending';
-    const stateIcon = {
-      pending: '○',
-      picking: '◐',
-      selected: '●',
-      skipped: '⊘',
-      manual: '◉',
-    }[fieldState];
+    const fieldData = rule.fields[f.key] || {};
+    let stateIcon;
+    if (fieldState === 'selected' && fieldData.state === 'manual') {
+      stateIcon = '◉';
+    } else {
+      stateIcon = {
+        pending: '○',
+        picking: '◐',
+        selected: '●',
+        skipped: '⊘',
+        manual: '◉',
+      }[fieldState];
+    }
 
     return `<span class="status-item" data-field="${f.key}">${stateIcon} ${f.label}</span>`;
   }).join(' | ');
@@ -751,6 +1009,41 @@ function bindEvents() {
     saveState();
     el.focus();
   });
+
+  // Debug panel events
+  ['debugIp1', 'debugIp2', 'debugIp3', 'debugIp4'].forEach((id, idx) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', (e) => {
+      // Only allow digits
+      e.target.value = e.target.value.replace(/\D/g, '');
+      // Auto-advance to next field when 3 digits entered
+      if (e.target.value.length >= 3) {
+        const nextId = ['debugIp2', 'debugIp3', 'debugIp4'][idx];
+        if (nextId) document.getElementById(nextId)?.focus();
+      }
+      saveState();
+    });
+    el.addEventListener('keydown', (e) => {
+      // Move to previous field on backspace if empty
+      if (e.key === 'Backspace' && e.target.value === '') {
+        const prevId = ['debugIp1', 'debugIp2', 'debugIp3'][idx - 1];
+        if (prevId) document.getElementById(prevId)?.focus();
+      }
+      // Move to next field on period/dot
+      if (e.key === '.' || e.key === 'Tab') {
+        if (e.key === '.') e.preventDefault();
+        const nextId = ['debugIp2', 'debugIp3', 'debugIp4'][idx];
+        if (nextId) document.getElementById(nextId)?.focus();
+      }
+    });
+  });
+  document.getElementById('debugPort')?.addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/\D/g, '');
+    saveState();
+  });
+  document.getElementById('debugStartBtn')?.addEventListener('click', handleDebugStart);
+  document.getElementById('debugStopBtn')?.addEventListener('click', handleDebugStop);
 }
 
 function handleAutoFill() {
@@ -882,9 +1175,18 @@ function handleNext() {
   const field = fields[rule.currentStep];
   const fieldState = rule.fieldStates[field.key];
 
-  if (field.required && (!fieldState || fieldState === 'pending' || fieldState === 'skipped')) {
-    showToast(`请完成必填字段"${field.label}"`, 'warning');
-    return;
+  if (field.required) {
+    if (!fieldState || fieldState === 'pending' || fieldState === 'skipped') {
+      showToast(`请完成必填字段"${field.label}"`, 'warning');
+      return;
+    }
+    if (fieldState === 'manual') {
+      const fieldData = rule.fields[field.key];
+      if (!fieldData || !fieldData.value || !fieldData.value.trim()) {
+        showToast(`请输入"${field.label}"的值`, 'warning');
+        return;
+      }
+    }
   }
 
   if (rule.currentStep === fields.length - 1) {
@@ -988,6 +1290,24 @@ function handleReset() {
   document.getElementById('searchMethod').value = 'GET';
   document.getElementById('searchCharset').value = '';
   document.getElementById('searchBodyTemplate').value = '';
+
+  // Reset debug panel
+  document.getElementById('debugKey').value = '';
+  document.getElementById('debugResult').textContent = '';
+  const debugIpParts = document.querySelectorAll('.debug-ip-part');
+  debugIpParts.forEach(el => el.value = '');
+  document.getElementById('debugPort').value = '';
+  if (debugWs) {
+    debugWs.close();
+    debugWs = null;
+  }
+  debugFinished = false;
+  if (debugTimeout) {
+    clearTimeout(debugTimeout);
+    debugTimeout = null;
+  }
+  document.getElementById('debugStartBtn').disabled = false;
+  document.getElementById('debugStopBtn').disabled = true;
 
   if (typeof window.clearExploreEditor === 'function') {
     window.clearExploreEditor();

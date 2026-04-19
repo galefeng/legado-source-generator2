@@ -33,7 +33,7 @@ const RULE_TYPES = {
   bookInfo: {
     label: '详情页',
     fields: [
-      { key: 'name', label: '书名', required: true },
+      { key: 'name', label: '书名', required: false },
       { key: 'author', label: '作者', required: false },
       { key: 'kind', label: '分类', required: false },
       { key: 'wordCount', label: '字数', required: false },
@@ -234,7 +234,13 @@ function updateStepIndicator() {
   const rule = getRuleState();
   const field = fields[rule.currentStep];
   const fieldState = rule.fieldStates[field.key] || 'pending';
-  const stateLabel = getStateLabel(fieldState);
+  const fieldData = rule.fields[field.key] || {};
+  let stateLabel;
+  if (fieldState === 'selected' && fieldData.state === 'manual') {
+    stateLabel = '(手动输入)';
+  } else {
+    stateLabel = getStateLabel(fieldState);
+  }
   const stepText = `${rule.currentStep + 1}/${fields.length}: ${field.label}${field.required ? ' *' : ''} ${stateLabel}`;
   document.getElementById('stepText').textContent = stepText;
 }
@@ -297,7 +303,7 @@ function renderFields() {
         ${fieldState === 'picking' ? `<button id="cancelBtn" class="btn btn-action btn-cancel">取消选择</button>` : ''}
         <button id="skipBtn" class="btn btn-action">跳过</button>
         <button id="manualBtn" class="btn btn-action ${fieldState === 'manual' ? 'btn-active' : ''}">
-          手动输入
+          ${fieldState === 'manual' ? '确认输入' : '手动输入'}
         </button>
         ${fieldState === 'selected' || fieldState === 'manual' ? `
         <button id="clearBtn" class="btn btn-action btn-clear">清除</button>
@@ -307,10 +313,10 @@ function renderFields() {
       ${isListField ? `
       <div class="list-hint">⚠️ <strong>需要选择两个同列表元素</strong>，自动提取交集生成选择器</div>
       ` : ''}
-      ${fieldState === 'selected' && fieldData.rawSelector ? `
+      ${fieldState === 'selected' && (fieldData.rawSelector || (fieldData.state === 'manual' && fieldData.value)) ? `
         <div class="selector-info">
-          <span class="selector-label">选择器:</span>
-          <code class="selector-value">${escapeHtml(fieldData.rawSelector)}</code>
+          <span class="selector-label">${fieldData.state === 'manual' ? '规则' : '选择器'}:</span>
+          <code class="selector-value">${escapeHtml(fieldData.state === 'manual' ? fieldData.value : fieldData.rawSelector)}</code>
         </div>
         ${filteredPreviews && filteredPreviews.length > 0 ? `
           <div class="preview-section">
@@ -488,18 +494,33 @@ function handleManualInput() {
   const fields = getFields();
   const rule = getRuleState();
   const field = fields[rule.currentStep];
+  const listFields = ['bookList', 'chapterList'];
 
   if (rule.fieldStates[field.key] === 'manual') {
-    rule.fieldStates[field.key] = 'pending';
+    // Confirm: manual → selected
+    rule.fieldStates[field.key] = 'selected';
+    // Trigger preview for confirmed manual input
+    const value = rule.fields[field.key]?.value?.trim();
+    if (value && !value.startsWith('<js>')) {
+      previewManualSelector(field.key, value);
+      // Set bookListSelector for list fields so subsequent fields can scope selection
+      if (listFields.includes(field.key)) {
+        rule.bookListSelector = value;
+      }
+    }
   } else {
+    // Enter manual mode: clear selector info from previous selection
     rule.fieldStates[field.key] = 'manual';
     rule.fields[field.key] = rule.fields[field.key] || { value: '', state: 'manual', rawSelector: '' };
     rule.fields[field.key].state = 'manual';
+    rule.fields[field.key].rawSelector = '';
+    rule.fields[field.key].previews = undefined;
   }
 
   saveState();
   renderFields();
   renderFieldStatusSummary();
+  updateStepIndicator();
 
   if (rule.fieldStates[field.key] === 'manual') {
     setTimeout(() => {
@@ -507,6 +528,38 @@ function handleManualInput() {
       if (input) input.focus();
     }, 50);
   }
+}
+
+function previewManualSelector(fieldKey, selector) {
+  // Validate selector locally first
+  try {
+    document.createElement('div').querySelector(selector);
+  } catch (e) {
+    return; // Invalid CSS selector, skip preview
+  }
+
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (!tabs[0]) return;
+    chrome.tabs.sendMessage(tabs[0].id, {
+      action: 'previewSelector',
+      selector: selector,
+    }, (response) => {
+      if (chrome.runtime.lastError || !response) return;
+      const rule = getRuleState();
+      const fieldData = rule.fields[fieldKey];
+      if (fieldData) {
+        fieldData.previews = response.previews || [];
+        fieldData.rawSelector = selector;
+        // Set bookListSelector for list fields so subsequent fields can scope selection
+        const listFields = ['bookList', 'chapterList'];
+        if (listFields.includes(fieldKey)) {
+          rule.bookListSelector = selector;
+        }
+        saveState();
+        renderFields();
+      }
+    });
+  });
 }
 
 function handleClearField() {
@@ -698,13 +751,19 @@ function renderFieldStatusSummary() {
   const rule = getRuleState();
   const summary = fields.map(f => {
     const fieldState = rule.fieldStates[f.key] || 'pending';
-    const stateIcon = {
-      pending: '○',
-      picking: '◐',
-      selected: '●',
-      skipped: '⊘',
-      manual: '◉',
-    }[fieldState];
+    const fieldData = rule.fields[f.key] || {};
+    let stateIcon;
+    if (fieldState === 'selected' && fieldData.state === 'manual') {
+      stateIcon = '◉';
+    } else {
+      stateIcon = {
+        pending: '○',
+        picking: '◐',
+        selected: '●',
+        skipped: '⊘',
+        manual: '◉',
+      }[fieldState];
+    }
 
     return `<span class="status-item" data-field="${f.key}">${stateIcon} ${f.label}</span>`;
   }).join(' | ');
@@ -892,9 +951,18 @@ function handleNext() {
   const field = fields[rule.currentStep];
   const fieldState = rule.fieldStates[field.key];
 
-  if (field.required && (!fieldState || fieldState === 'pending' || fieldState === 'skipped')) {
-    showToast(`请完成必填字段"${field.label}"`, 'warning');
-    return;
+  if (field.required) {
+    if (!fieldState || fieldState === 'pending' || fieldState === 'skipped') {
+      showToast(`请完成必填字段"${field.label}"`, 'warning');
+      return;
+    }
+    if (fieldState === 'manual') {
+      const fieldData = rule.fields[field.key];
+      if (!fieldData || !fieldData.value || !fieldData.value.trim()) {
+        showToast(`请输入"${field.label}"的值`, 'warning');
+        return;
+      }
+    }
   }
 
   if (rule.currentStep === fields.length - 1) {
