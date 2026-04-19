@@ -4,6 +4,10 @@
 
 一个 Chrome 扩展，通过可视化点选页面元素来生成[阅读](https://github.com/gedoor/legado) APP 的书源规则。
 
+## 交流群
+
+1101980180
+
 ## 想用ai自动化编写调试书源？
 
 搜索legado-book-source-skill
