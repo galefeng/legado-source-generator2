@@ -252,7 +252,7 @@ function handleDebugStart() {
   }
 
   // Get the JSON for the current book source
-  const sourceJson = generateJson()[0];
+  const sourceJson = generateJson();
   if (!sourceJson.ruleSearch && !sourceJson.ruleExplore) {
     showToast('请先配置至少一个规则页', 'warning');
     return;
@@ -1208,7 +1208,9 @@ function handleExport() {
     return;
   }
   const jsonData = generateJson();
-  document.getElementById('jsonOutput').value = JSON.stringify(jsonData, null, 2);
+  const textarea = document.getElementById('jsonOutput');
+  textarea.value = JSON.stringify(jsonData, null, 2);
+  textarea.dataset.downloadJson = JSON.stringify([jsonData], null, 2);
   document.getElementById('exportModal').classList.remove('hidden');
 }
 
@@ -1232,9 +1234,7 @@ function generateJson() {
     searchUrl: state.searchUrl || '',
     exploreUrl: exploreUrlValue,
   };
-  // Export as an array so downloaded files can be imported by Legado Sigma,
-  // whose file import path expects a top-level JSON array of book sources.
-  return [result];
+  return result;
 }
 
 function buildRuleSection(type) {
@@ -1264,7 +1264,7 @@ function handleCopy() {
 
 function handleDownload() {
   const textarea = document.getElementById('jsonOutput');
-  const jsonStr = textarea.value;
+  const jsonStr = textarea.dataset.downloadJson || textarea.value;
   const blob = new Blob([jsonStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
