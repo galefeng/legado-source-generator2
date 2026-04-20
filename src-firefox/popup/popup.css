@@ -667,7 +667,7 @@ body {
   color: var(--text);
 }
 
-.modal-content textarea.input {
+.modal-content textarea.input--json {
   flex: 1;
   min-height: 180px;
   resize: none;
@@ -924,9 +924,7 @@ body {
 
 .batch-url-form .input {
   min-width: 0;
-  max-width: 100%;
   margin-bottom: 0;
-  line-height: 1.5;
   flex: initial;
 }
 
@@ -1343,24 +1341,9 @@ body {
   border-color: var(--accent);
 }
 
-.explore-editor .explore-preview-box textarea {
-  width: 100%;
-  min-height: 60px;
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: 11px;
-  font-family: var(--mono);
-  background: var(--bg);
-  color: var(--text);
+.explore-editor .explore-preview-box textarea.input {
+  min-height: 32px;
   resize: vertical;
-  line-height: 1.5;
-}
-
-.explore-editor .explore-preview-box textarea:focus {
-  outline: none;
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 2px var(--accent-dim);
 }
 
 .explore-editor .explore-collection-indicator {

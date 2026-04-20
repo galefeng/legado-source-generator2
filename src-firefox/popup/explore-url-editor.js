@@ -624,27 +624,27 @@ function renderPropsPanel() {
     <div class="props-form">
       <label>
         <span>标题</span>
-        <textarea id="propTitle" rows="2">${escapeHtml(item.title)}</textarea>
+        <textarea id="propTitle" class="input" rows="1">${escapeHtml(item.title)}</textarea>
       </label>
       <label>
         <span>URL</span>
-        <textarea id="propUrl" rows="2" ${item.isSeparator ? 'readonly placeholder="分隔项无URL"' : ''}>${escapeHtml(item.url)}</textarea>
+        <textarea id="propUrl" class="input" rows="1" ${item.isSeparator ? 'readonly placeholder="分隔项无URL"' : ''}>${escapeHtml(item.url)}</textarea>
       </label>
       <div class="prop-row">
         <span class="prop-label">layout_flexGrow</span>
-        <input type="number" id="propFlexGrow" value="${s.layout_flexGrow ?? 1}" step="1">
+        <input type="number" id="propFlexGrow" class="input" value="${s.layout_flexGrow ?? 1}" step="1">
       </div>
       <div class="prop-row">
         <span class="prop-label">layout_flexShrink</span>
-        <input type="number" id="propFlexShrink" value="${s.layout_flexShrink ?? 0}" step="1">
+        <input type="number" id="propFlexShrink" class="input" value="${s.layout_flexShrink ?? 0}" step="1">
       </div>
       <div class="prop-row">
         <span class="prop-label">layout_alignSelf</span>
-        <input type="text" id="propAlignSelf" value="${s.layout_alignSelf ?? 'auto'}">
+        <input type="text" id="propAlignSelf" class="input" value="${s.layout_alignSelf ?? 'auto'}">
       </div>
       <div class="prop-row">
         <span class="prop-label">layout_flexBasisPercent</span>
-        <input type="number" id="propFlexBasisPercent" value="${s.layout_flexBasisPercent ?? -1}" step="0.1">
+        <input type="number" id="propFlexBasisPercent" class="input" value="${s.layout_flexBasisPercent ?? -1}" step="0.1">
       </div>
       <div class="prop-row">
         <span class="prop-label">layout_wrapBefore</span>

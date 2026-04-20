@@ -696,7 +696,7 @@ body {
   color: var(--text);
 }
 
-.modal-content textarea.input {
+.modal-content textarea.input--json {
   flex: 1;
   min-height: 180px;
   resize: none;
@@ -944,9 +944,7 @@ body {
 
 .batch-url-form .input {
   min-width: 0;
-  max-width: 100%;
   margin-bottom: 0;
-  line-height: 1.5;
   flex: initial;
 }
 
@@ -1344,8 +1342,7 @@ body {
 }
 
 .explore-editor .explore-preview-box textarea.input {
-  min-height: 60px;
-  line-height: 1.5;
+  min-height: 32px;
   resize: vertical;
 }
 

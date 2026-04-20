@@ -342,6 +342,15 @@ function getAnchoredSelector(element, root, blacklist) {
 
 function getIntersectionSelector(el1, el2, options = {}) {
   const blacklist = options.blacklist || DEFAULT_BLACKLIST;
+
+  // First, try to find the "sibling level" — the lowest ancestors of el1 and el2
+  // that are siblings. This produces better list item selectors because child
+  // field selectors can then be relative to the list item container.
+  // Example: clicking two <a> inside two <li> siblings → list item = <li>, not <a>
+  const siblingSelector = getSiblingLevelSelector(el1, el2, blacklist);
+  if (siblingSelector) return siblingSelector;
+
+  // Fallback: original logic using the clicked elements directly
   const classes1 = getValidClasses(el1, blacklist);
   const classes2 = getValidClasses(el2, blacklist);
   const commonClasses = classes1.filter(cls => classes2.includes(cls));
@@ -414,6 +423,98 @@ function getIntersectionSelector(el1, el2, options = {}) {
     } catch (e) { /* skip */ }
   }
 
+  return null;
+}
+
+/**
+ * Find the "sibling level" selector for two elements.
+ * Walks up from both elements until their ancestors are siblings,
+ * then generates an intersection selector for those sibling ancestors.
+ * 
+ * Example: el1=<a> inside <li>, el2=<a> inside <li class="style">
+ *   → siblings are the two <li> elements
+ *   → returns "li" as the list item selector
+ *   → child selectors like "a@text" work relative to <li>
+ */
+function getSiblingLevelSelector(el1, el2, blacklist) {
+  // Walk up from both elements simultaneously to find the first pair of siblings
+  let a1 = el1, a2 = el2;
+  const maxDepth = 10;
+  
+  for (let i = 0; i < maxDepth; i++) {
+    const p1 = a1.parentElement;
+    const p2 = a2.parentElement;
+    
+    if (!p1 || !p2 || p1 === document.body || p2 === document.body) break;
+    
+    // Check if p1 and p2 are siblings (same parent)
+    if (p1.parentElement === p2.parentElement) {
+      // Found the sibling level: p1 and p2 are the list item candidates
+      return buildIntersectionForPair(p1, p2, blacklist);
+    }
+    
+    // Walk up the side that is deeper
+    if (p1.contains && p1.contains(p2)) {
+      a1 = p1;
+    } else if (p2.contains && p2.contains(p1)) {
+      a2 = p2;
+    } else {
+      a1 = p1;
+      a2 = p2;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Build an intersection selector for a pair of sibling-level elements.
+ * Tries class-based selectors first, then tag-only.
+ */
+function buildIntersectionForPair(el1, el2, blacklist) {
+  const tag1 = el1.tagName.toLowerCase();
+  const tag2 = el2.tagName.toLowerCase();
+  const sameTag = tag1 === tag2;
+  
+  const classes1 = getValidClasses(el1, blacklist);
+  const classes2 = getValidClasses(el2, blacklist);
+  const commonClasses = classes1.filter(cls => classes2.includes(cls));
+  
+  // Try: tag.commonClass (e.g., li.chapter-item)
+  if (sameTag && commonClasses.length > 0) {
+    const safeClasses = commonClasses.map(cls => cls.replace(/[^\w-]/g, '\\$&'));
+    const selector = `${tag1}.${safeClasses.join('.')}`;
+    try {
+      const count = document.querySelectorAll(selector).length;
+      if (count > 1) return selector;
+    } catch (e) { /* skip */ }
+  }
+  
+  // Try: parent > tag (e.g., div.chapter > li)
+  if (sameTag) {
+    const parent = el1.parentElement;
+    if (parent && !['BODY', 'HTML', '#document'].includes(parent.tagName)) {
+      const parentTag = parent.tagName.toLowerCase();
+      const parentId = parent.id ? `#${parent.id}` : '';
+      const parentClasses = getValidClasses(parent, blacklist);
+      const parentClassStr = parentClasses.length > 0
+        ? parentClasses.map(c => `.${c.replace(/[^\w-]/g, '\\$&')}`).join('')
+        : '';
+      
+      const baseSelector = `${parentTag}${parentId}${parentClassStr} > ${tag1}`;
+      try {
+        const count = document.querySelectorAll(baseSelector).length;
+        if (count > 1) return baseSelector;
+      } catch (e) { /* skip */ }
+    }
+    
+    // Just the tag (e.g., li)
+    try {
+      const count = document.querySelectorAll(tag1).length;
+      if (count > 1) return tag1;
+    } catch (e) { /* skip */ }
+  }
+  
   return null;
 }
 
