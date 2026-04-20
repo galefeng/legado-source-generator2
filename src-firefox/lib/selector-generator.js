@@ -203,6 +203,18 @@ function buildTagPathSelector(path) {
 }
 
 function getCssSelector(element, options = {}) {
+  // [DEBUG] Log entry
+  console.log('[SelectorGen:DEBUG] getCssSelector called:', {
+    elementTag: element?.tagName,
+    elementClass: element?.className,
+    elementId: element?.id,
+    instanceofElement: element instanceof Element,
+    rootTag: (options.root || document.body)?.tagName,
+    rootClass: (options.root || document.body)?.className,
+    rootId: (options.root || document.body)?.id,
+    preferReusable: options.preferReusable,
+  });
+
   if (!element || !(element instanceof Element)) {
     throw new Error('Invalid element provided');
   }
@@ -250,11 +262,16 @@ function getCssSelector(element, options = {}) {
 
   // Fallback 1: try anchored selector
   const anchored = getAnchoredSelector(element, root, blacklist);
+  // [DEBUG] Log anchored result
+  console.log('[SelectorGen:DEBUG] anchored selector:', anchored);
   if (anchored) return anchored;
 
   // Fallback 2: pure tag path (no nth-child), e.g. dd > h3 > a
   const path = getTagPath(element, root);
-  return buildTagPathSelector(path);
+  const tagPathResult = buildTagPathSelector(path);
+  // [DEBUG] Log tag path result
+  console.log('[SelectorGen:DEBUG] tag path:', { path: path.map(p => p.tag), selector: tagPathResult });
+  return tagPathResult;
 }
 
 function getAnchoredSelector(element, root, blacklist) {
@@ -266,6 +283,18 @@ function getAnchoredSelector(element, root, blacklist) {
     if (classes.length > 0) { anchor = current; break; }
     current = current.parentElement;
   }
+
+  // [DEBUG] Log anchor search result
+  console.log('[SelectorGen:DEBUG] getAnchoredSelector:', {
+    anchorFound: !!anchor,
+    anchorTag: anchor?.tagName,
+    anchorClass: anchor?.className,
+    anchorId: anchor?.id,
+    anchorIsRoot: anchor === root,
+    rootTag: root?.tagName,
+    rootClass: root?.className,
+  });
+
   if (!anchor) return null;
 
   // Build path from element to anchor
@@ -286,6 +315,22 @@ function getAnchoredSelector(element, root, blacklist) {
   const childPath = path.map(p => p.tag).join(' > ');
 
   const fullSelector = childPath ? `${anchorSelector} > ${childPath}` : anchorSelector;
+
+  // [DEBUG] Log selector validation
+  let rootQsaResult = -1;
+  let docQsaResult = -1;
+  try {
+    rootQsaResult = root.querySelectorAll(fullSelector).length;
+  } catch (e) { rootQsaResult = -2; }
+  try {
+    docQsaResult = document.querySelectorAll(fullSelector).length;
+  } catch (e) { docQsaResult = -2; }
+  console.log('[SelectorGen:DEBUG] getAnchoredSelector validation:', {
+    fullSelector,
+    rootQsaResult,
+    docQsaResult,
+    anchorIsRoot: anchor === root,
+  });
 
   try {
     if (root.querySelectorAll(fullSelector).length > 0) {

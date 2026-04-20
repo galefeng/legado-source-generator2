@@ -21,6 +21,39 @@
   let isExploreCollectorActive = false;
   let exploreCollectedItems = [];
 
+  /**
+   * Check if extension context is still valid.
+   * Returns false after extension reload/update.
+   */
+  function isContextValid() {
+    try {
+      return !!chrome.runtime?.id;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
+   * Safe wrapper for chrome.runtime.sendMessage.
+   * Handles Extension context invalidated errors gracefully.
+   */
+  function safeSendMessage(message, callback) {
+    if (!isContextValid()) {
+      console.warn('[Picker] Extension context invalidated, stopping picker');
+      stopPicker();
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage(message, (response) => {
+        void chrome.runtime.lastError;
+        if (callback) callback(response);
+      });
+    } catch (e) {
+      console.warn('[Picker] sendMessage failed:', e.message);
+      stopPicker();
+    }
+  }
+
   // Known root elements for smart detection
   const KNOWN_ROOTS = {
     bookList: ['#bookList', '.book-list', '[data-book-list]', '.novel-list', '#novel-list', '.chapter-list'],
@@ -34,13 +67,10 @@
    */
   function showToast(message, type = 'warning') {
     // 仅在侧边栏显示提示，避免网页与侧边栏重复弹出。
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       action: 'showToast',
       message: message,
       type: type
-    }, () => {
-      // 忽略无响应错误，不在网页中回退显示 toast。
-      void chrome.runtime.lastError;
     });
   }
 
@@ -184,7 +214,7 @@
     const text = element.textContent ? element.textContent.trim().substring(0, 80) : '';
     const stepLabel = firstItemElement ? `${currentStep} (2/2)` : `${currentStep}`;
 
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       action: 'pickerElementInfo',
       step: stepLabel,
       elementInfo: `<${tagName}${id}${classes}>`,
@@ -368,7 +398,7 @@
       const previews = collectPreviews(intersectionSelector, matchCount);
       const tagName = firstItemElement.tagName.toLowerCase();
 
-      chrome.runtime.sendMessage({
+      safeSendMessage({
         action: 'selectorSelected',
         selector: intersectionSelector,
         step: currentStep,
@@ -389,6 +419,16 @@
 
     /* Single element selection (non-list fields) */
     const warnings = [];
+
+    // [DEBUG] Log element info for Edge debugging
+    console.log('[Picker:DEBUG] confirmSelection — element:', {
+      tagName: element.tagName,
+      id: element.id,
+      className: element.className,
+      instanceofElement: element instanceof Element,
+      instanceofHTMLElement: element instanceof HTMLElement,
+      constructorName: element.constructor?.name,
+    });
 
     if (isInShadowDOM(element)) {
       warnings.push('Warning: Element is inside Shadow DOM - selector may not work');
@@ -413,7 +453,44 @@
     }
 
     const root = listItemRoot || rootElement || findSmartRoot(element);
-    const selector = getCssSelector(element, { root, preferReusable: true });
+
+    // [DEBUG] Log root info
+    console.log('[Picker:DEBUG] confirmSelection — root:', {
+      tagName: root?.tagName,
+      id: root?.id,
+      className: root?.className,
+      isBody: root === document.body,
+      isSameAsElement: root === element,
+      listItemRoot: listItemRoot ? { tag: listItemRoot.tagName, class: listItemRoot.className } : null,
+      rootElement: rootElement ? { tag: rootElement.tagName, class: rootElement.className } : null,
+      smartRoot: findSmartRoot(element) ? { tag: findSmartRoot(element).tagName, class: findSmartRoot(element).className } : null,
+    });
+
+    // When element IS the root (e.g., user clicked the list container itself),
+    // getCssSelector returns empty because getTagPath(element, root) produces no path.
+    // Fall back to using document.body as root so the selector is generated relative
+    // to the full document instead.
+    const effectiveRoot = (root && root === element) ? document.body : root;
+
+    let selector;
+    try {
+      selector = getCssSelector(element, { root: effectiveRoot, preferReusable: true });
+    } catch (e) {
+      // [DEBUG] Log if getCssSelector throws
+      console.error('[Picker:DEBUG] getCssSelector threw:', e.message, {
+        elementTagName: element.tagName,
+        elementInstanceOfElement: element instanceof Element,
+      });
+      showToast('选择器生成失败: ' + e.message, 'error');
+      return;
+    }
+
+    // [DEBUG] Log selector result
+    console.log('[Picker:DEBUG] confirmSelection — selector result:', {
+      selector,
+      selectorTrimmed: selector?.trim(),
+      isEmpty: !selector || selector.trim() === '',
+    });
 
     if (!selector || selector.trim() === '') {
       showToast('请选择一个有效元素', 'error');
@@ -436,7 +513,7 @@
 
     const previews = collectPreviews(selector, matchCount);
 
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       action: 'selectorSelected',
       selector,
       step: currentStep,
@@ -489,7 +566,7 @@
 
     injectPickerStyles();
 
-    chrome.runtime.sendMessage({ action: 'pickerReady', step: currentStep });
+    safeSendMessage({ action: 'pickerReady', step: currentStep });
   }
 
   /**
@@ -517,7 +594,7 @@
     const container = document.getElementById('picker-toast-container');
     if (container) container.remove();
 
-    chrome.runtime.sendMessage({ action: 'pickerStopped' });
+    safeSendMessage({ action: 'pickerStopped' });
   }
 
   /**
@@ -565,7 +642,7 @@
     document.addEventListener('click', onExploreClick, true);
     document.addEventListener('keydown', onExploreKeydown, true);
 
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       action: 'exploreCollectionStarted',
     });
   }
@@ -578,7 +655,7 @@
     if (exploreHoveredEl && exploreHoveredEl !== el) exploreHoveredEl.classList.remove('picker-hover');
     exploreHoveredEl = el;
     el.classList.add('picker-hover');
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       action: 'exploreElementHover',
       elementInfo: `<a.${el.className ? el.className.trim().split(/\s+/)[0] : ''}>`,
       elementText: el.textContent.trim().substring(0, 80),
@@ -613,7 +690,7 @@
     exploreCollectedItems.push({ title, url });
     showToast(`已添加: ${title}`, 'info');
 
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       action: 'exploreItemCollected',
       item: { title, url },
       total: exploreCollectedItems.length,
@@ -642,7 +719,7 @@
       exploreHoveredEl = null;
     }
 
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       action: 'exploreCollected',
       items: exploreCollectedItems,
     });
