@@ -233,11 +233,12 @@ let debugTimeout = null;
 let debugFinished = false;
 
 function handleDebugStart() {
+  const defaultIp = ['192', '168', '1', '100'];
   const ipParts = [
-    document.getElementById('debugIp1').value.trim(),
-    document.getElementById('debugIp2').value.trim(),
-    document.getElementById('debugIp3').value.trim(),
-    document.getElementById('debugIp4').value.trim(),
+    document.getElementById('debugIp1').value.trim() || defaultIp[0],
+    document.getElementById('debugIp2').value.trim() || defaultIp[1],
+    document.getElementById('debugIp3').value.trim() || defaultIp[2],
+    document.getElementById('debugIp4').value.trim() || defaultIp[3],
   ];
   const host = ipParts.join('.');
   const port = parseInt(document.getElementById('debugPort').value, 10) || 1122;
@@ -245,11 +246,6 @@ function handleDebugStart() {
   const resultEl = document.getElementById('debugResult');
   const startBtn = document.getElementById('debugStartBtn');
   const stopBtn = document.getElementById('debugStopBtn');
-
-  if (!host || ipParts.some(p => !p)) {
-    showToast('请输入完整的 Legado 服务器 IP', 'warning');
-    return;
-  }
 
   // Get the JSON for the current book source
   const sourceJson = generateJson();
@@ -462,7 +458,9 @@ function renderFields() {
   const field = fields[rule.currentStep];
   const fieldData = rule.fields[field.key] || {};
   const fieldState = rule.fieldStates[field.key] || 'pending';
-  const value = fieldData.value || '';
+  const isLinkField = LINK_FIELDS.includes(field.key);
+  const rawValue = fieldData.value || '';
+  const value = (fieldData.webView && isLinkField && rawValue) ? applyWebView(rawValue) : rawValue;
   const isManual = fieldState === 'manual';
   const isListField = ['bookList', 'chapterList'].includes(field.key);
   const fieldIndex = fieldData.listIndex || {};
@@ -505,6 +503,7 @@ function renderFields() {
           ${fieldState === 'manual' ? '确认输入' : '手动输入'}
         </button>
         ${fieldState === 'selected' || fieldState === 'manual' ? `
+        ${isLinkField ? `<button id="webViewBtn" class="btn btn-action${fieldData.webView ? ' btn-active' : ''}">webView${fieldData.webView ? ' ✓' : ''}</button>` : ''}
         <button id="clearBtn" class="btn btn-action btn-clear">清除</button>
         ` : ''}
       </div>
@@ -567,6 +566,18 @@ function bindFieldEvents() {
   if (indexApplyBtn) indexApplyBtn.addEventListener('click', handleIndexApply);
   const clearBtn = document.getElementById('clearBtn');
   if (clearBtn) clearBtn.addEventListener('click', handleClearField);
+  const webViewBtn = document.getElementById('webViewBtn');
+  if (webViewBtn) {
+    webViewBtn.addEventListener('click', () => {
+      const fields = getFields();
+      const rule = getRuleState();
+      const field = fields[rule.currentStep];
+      if (!rule.fields[field.key]) rule.fields[field.key] = {};
+      rule.fields[field.key].webView = !rule.fields[field.key].webView;
+      saveState();
+      renderFields();
+    });
+  }
 }
 
 function handleSelectElement() {
@@ -888,7 +899,13 @@ function handleFieldInput(e) {
   const fields = getFields();
   const rule = getRuleState();
   const field = fields[rule.currentStep];
-  const value = e.target.value;
+  let value = e.target.value;
+
+  // Strip webView suffix if the field has webView enabled,
+  // so we store the raw rule and apply webView dynamically on export/display
+  if (rule.fields[field.key]?.webView && LINK_FIELDS.includes(field.key)) {
+    value = stripWebView(value);
+  }
 
   if (!rule.fields[field.key]) {
     rule.fields[field.key] = { value: '', state: 'manual', rawSelector: '' };
@@ -990,6 +1007,7 @@ function bindEvents() {
   document.getElementById('searchCaptureCancelListenBtn').addEventListener('click', handleCancelSearchListen);
   document.getElementById('searchMethod').addEventListener('change', onSearchConfigChange);
   document.getElementById('searchCharset').addEventListener('input', rebuildSearchUrlFromForm);
+  document.getElementById('searchWebView').addEventListener('change', rebuildSearchUrlFromForm);
   document.getElementById('searchBodyTemplate').addEventListener('input', () => {
     autoResizeTextarea(document.getElementById('searchBodyTemplate'));
     rebuildSearchUrlFromForm();
@@ -1237,6 +1255,47 @@ function generateJson() {
   return result;
 }
 
+const LINK_FIELDS = ['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'];
+
+function applyWebView(rule) {
+  if (!rule) return rule;
+  if (rule.includes('{"webView":true}')) return rule; // already applied
+  if (rule.includes('<js>') && rule.includes('</js>')) {
+    // JS script: only modify the return in the try block (before }catch or } catch),
+    // not the catch block's return ""+e
+    const catchIdx = rule.search(/\}\s*catch/);
+    if (catchIdx !== -1) {
+      const tryPart = rule.substring(0, catchIdx);
+      const catchPart = rule.substring(catchIdx);
+      const modified = tryPart.replace(/return\s+([^;]+);/g, "return $1 + ',{\"webView\":true}';");
+      return modified + catchPart;
+    }
+    // Fallback: no catch block found, replace all returns
+    return rule.replace(/return\s+([^;]+);/g, "return $1 + ',{\"webView\":true}';");
+  } else {
+    // Pure selector: append @js suffix
+    return rule + "@js:result+',{\"webView\":true}'";
+  }
+}
+
+function stripWebView(rule) {
+  if (!rule) return rule;
+  // Strip @js suffix for pure selectors
+  let stripped = rule.replace(/@js:result\+',\{"webView":true\}'$/, '');
+  if (stripped !== rule) return stripped;
+  // Strip webView from JS return statements (only in try block)
+  const catchIdx = rule.search(/\}\s*catch/);
+  if (catchIdx !== -1) {
+    const tryPart = rule.substring(0, catchIdx);
+    const catchPart = rule.substring(catchIdx);
+    const modified = tryPart.replace(/ \+',\{"webView":true\}'/g, '');
+    return modified + catchPart;
+  }
+  // Fallback: no catch block, strip all occurrences
+  stripped = rule.replace(/ \+',\{"webView":true\}'/g, '');
+  return stripped;
+}
+
 function buildRuleSection(type) {
   const rule = state.rules[type];
   const fields = RULE_TYPES[type].fields;
@@ -1245,7 +1304,11 @@ function buildRuleSection(type) {
   fields.forEach(field => {
     const fieldData = rule.fields[field.key];
     if (fieldData && fieldData.value) {
-      section[field.key] = fieldData.value;
+      let value = fieldData.value;
+      if (fieldData.webView && LINK_FIELDS.includes(field.key)) {
+        value = applyWebView(value);
+      }
+      section[field.key] = value;
     }
   });
 
@@ -1301,6 +1364,7 @@ function handleReset() {
   document.getElementById('searchUrlTemplate').value = '';
   document.getElementById('searchMethod').value = 'GET';
   document.getElementById('searchCharset').value = '';
+  document.getElementById('searchWebView').value = 'false';
   document.getElementById('searchBodyTemplate').value = '';
 
   // Reset debug panel
@@ -1687,19 +1751,27 @@ function showSearchCaptureForm(data) {
   charsetEl.value = data.charset || 'utf-8';
   bodyEl.value = data.body || '';
 
+  const webViewEl = document.getElementById('searchWebView');
+  webViewEl.value = (data.webView === true || data.webView === 'true') ? 'true' : 'false';
+
   // Build complete Legado-format search URL
   const method = methodEl.value;
   const charset = charsetEl.value;
   const body = bodyEl.value;
+  const webView = webViewEl.value === 'true';
   const url = data.url || '';
 
-  if (method === 'POST' || charset !== 'utf-8') {
-    // POST or non-UTF8: use JSON format
+  const needsCharset = charset && charset !== 'utf-8';
+  if (method === 'POST' || needsCharset || webView) {
+    // POST, non-UTF8, or webView: use JSON format
     const config = {};
-    config.charset = charset;
+    if (needsCharset) config.charset = charset;
     config.method = method;
     if (method === 'POST' && body) {
       config.body = body;
+    }
+    if (webView) {
+      config.webView = true;
     }
     urlEl.value = url + ',' + JSON.stringify(config);
     bodyField.classList.remove('hidden');
@@ -1730,10 +1802,12 @@ function rebuildSearchUrlFromForm() {
   const methodEl = document.getElementById('searchMethod');
   const charsetEl = document.getElementById('searchCharset');
   const bodyEl = document.getElementById('searchBodyTemplate');
+  const webViewEl = document.getElementById('searchWebView');
 
   const method = methodEl.value;
   const charset = charsetEl.value;
   const body = bodyEl.value;
+  const webView = webViewEl.value === 'true';
 
   // Extract base URL (everything before the first comma+JSON)
   let baseUrl = urlEl.value || '';
@@ -1742,12 +1816,16 @@ function rebuildSearchUrlFromForm() {
     baseUrl = baseUrl.substring(0, commaIdx);
   }
 
-  if (method === 'POST' || charset !== 'utf-8') {
+  const needsCharset = charset && charset !== 'utf-8';
+  if (method === 'POST' || needsCharset || webView) {
     const config = {};
-    config.charset = charset;
+    if (needsCharset) config.charset = charset;
     config.method = method;
     if (method === 'POST' && body) {
       config.body = body;
+    }
+    if (webView) {
+      config.webView = true;
     }
     urlEl.value = baseUrl + ',' + JSON.stringify(config);
   } else {

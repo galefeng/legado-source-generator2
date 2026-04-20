@@ -47,6 +47,13 @@
             <label>charset</label>
             <input type="text" id="searchCharset" class="input-field" value="" placeholder="utf-8 / gbk">
           </div>
+          <div class="search-field">
+            <label>webView <span class="search-field-hint" title="搜索不到内容时尝试选择 true，会拖慢速度，不建议无脑加上">ⓘ</span></label>
+            <select id="searchWebView" class="search-select">
+              <option value="false" selected>false</option>
+              <option value="true">true</option>
+            </select>
+          </div>
           <div class="search-field" id="searchBodyField">
             <label>请求体</label>
             <textarea id="searchBodyTemplate" class="input-field search-url-output" rows="1" placeholder="POST body"></textarea>
