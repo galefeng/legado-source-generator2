@@ -38,7 +38,7 @@
         <div id="searchCaptureForm" class="search-capture-form">
           <div class="search-field">
             <label>请求方法</label>
-            <select id="searchMethod" class="search-select">
+            <select id="searchMethod" class="input input--sans">
               <option value="GET">GET</option>
               <option value="POST">POST</option>
             </select>
@@ -49,7 +49,7 @@
           </div>
           <div class="search-field">
             <label>webView <span class="search-field-hint" title="搜索不到内容时尝试选择 true，会拖慢速度，不建议无脑加上">ⓘ</span></label>
-            <select id="searchWebView" class="search-select">
+            <select id="searchWebView" class="input input--sans">
               <option value="false" selected>false</option>
               <option value="true">true</option>
             </select>
@@ -117,7 +117,7 @@
             <button class="format-btn" data-format="1">样式一</button>
           </div>
         </div>
-        <textarea id="exploreUrlPreview" rows="1" placeholder="[{&quot;title&quot;:&quot;同人小说&quot;,&quot;url&quot;:&quot;...&quot;}]" readonly></textarea>
+        <textarea id="exploreUrlPreview" class="input" rows="1" placeholder="[{&quot;title&quot;:&quot;同人小说&quot;,&quot;url&quot;:&quot;...&quot;}]" readonly></textarea>
         <div id="exploreCollectionIndicator" class="explore-collection-indicator hidden">
           <div class="indicator-step" id="exploreIndicatorStep">-</div>
           <div class="indicator-element" id="exploreIndicatorElement">-</div>
@@ -299,7 +299,7 @@
     <div id="applyStyleModal" class="modal hidden">
       <div class="modal-content">
         <h3>应用样式模板</h3>
-        <select id="applyTemplateSelect" class="batch-select batch-modal-select"></select>
+        <select id="applyTemplateSelect" class="input input--sans batch-modal-select"></select>
         <div class="modal-actions">
           <button id="applyTemplateConfirmBtn" class="btn btn-primary">应用到已选</button>
           <button id="applyTemplateCancelBtn" class="btn btn-secondary">取消</button>
