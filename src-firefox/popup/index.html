@@ -17,8 +17,8 @@
         </div>
       </div>
       <div class="header-meta">
-        <textarea id="bookSourceName" placeholder="书源名称" class="input-name" rows="1"></textarea>
-        <textarea id="bookSourceUrl" placeholder="书源网站URL" class="input-url" rows="1"></textarea>
+        <textarea id="bookSourceName" placeholder="书源名称" class="input input--sans" rows="1"></textarea>
+        <textarea id="bookSourceUrl" placeholder="书源网站URL" class="input input--sans" rows="1"></textarea>
       </div>
     </header>
 
@@ -45,7 +45,7 @@
           </div>
           <div class="search-field">
             <label>charset</label>
-            <input type="text" id="searchCharset" class="input-field" value="" placeholder="utf-8 / gbk">
+            <input type="text" id="searchCharset" class="input" value="" placeholder="utf-8 / gbk">
           </div>
           <div class="search-field">
             <label>webView <span class="search-field-hint" title="搜索不到内容时尝试选择 true，会拖慢速度，不建议无脑加上">ⓘ</span></label>
@@ -56,14 +56,14 @@
           </div>
           <div class="search-field" id="searchBodyField">
             <label>请求体</label>
-            <textarea id="searchBodyTemplate" class="input-field search-url-output" rows="1" placeholder="POST body"></textarea>
+            <textarea id="searchBodyTemplate" class="input" rows="1" placeholder="POST body"></textarea>
           </div>
           <div class="search-field">
             <div class="search-url-label-row">
               <label>搜索 URL</label>
               <button id="insertPagePlaceholderBtn" class="btn btn-action btn-sm" title="插入 {{page}} 占位符">{{page}}</button>
             </div>
-            <textarea id="searchUrlTemplate" class="input-field search-url-output" rows="1" placeholder="捕获后自动填充"></textarea>
+            <textarea id="searchUrlTemplate" class="input" rows="1" placeholder="捕获后自动填充"></textarea>
           </div>
         </div>
       </div>
@@ -195,10 +195,10 @@
       <div class="modal-content">
         <h3>批量修改 layout 属性</h3>
         <div class="batch-layout-grid">
-          <label><input type="checkbox" id="batchEnableFlexGrow"> layout_flexGrow <input type="number" id="batchFlexGrow" value="1" step="1"></label>
-          <label><input type="checkbox" id="batchEnableFlexShrink"> layout_flexShrink <input type="number" id="batchFlexShrink" value="0" step="1"></label>
-          <label><input type="checkbox" id="batchEnableAlignSelf"> layout_alignSelf <input type="text" id="batchAlignSelf" value="auto"></label>
-          <label><input type="checkbox" id="batchEnableFlexBasis"> layout_flexBasisPercent <input type="number" id="batchFlexBasisPercent" value="-1" step="0.1"></label>
+          <label><input type="checkbox" id="batchEnableFlexGrow"> layout_flexGrow <input type="number" id="batchFlexGrow" class="input input--50" value="1" step="1"></label>
+          <label><input type="checkbox" id="batchEnableFlexShrink"> layout_flexShrink <input type="number" id="batchFlexShrink" class="input input--50" value="0" step="1"></label>
+          <label><input type="checkbox" id="batchEnableAlignSelf"> layout_alignSelf <input type="text" id="batchAlignSelf" class="input input--50" value="auto"></label>
+          <label><input type="checkbox" id="batchEnableFlexBasis"> layout_flexBasisPercent <input type="number" id="batchFlexBasisPercent" class="input input--50" value="-1" step="0.1"></label>
           <label><input type="checkbox" id="batchEnableWrapBefore"> layout_wrapBefore <input type="checkbox" id="batchWrapBefore"></label>
         </div>
         <div class="modal-actions">
@@ -245,15 +245,15 @@
             <div>第一页差异：留空</div>
           </div>
           <div class="batch-layout-grid template-grid batch-url-form">
-            <label><span>分类匹配模板</span><textarea id="batchCategoryPattern" class="input-url batch-url-input" rows="1" placeholder="https://www.example.com/分类/"></textarea></label>
-            <label><span>翻页模板</span><textarea id="batchPagedUrlTemplate" class="input-url batch-url-input" rows="1" placeholder="https://www.example.com/分类/页码.html"></textarea></label>
-            <label><span>第一页差异</span><textarea id="batchFirstPageDiff" class="input-url batch-url-input" rows="1" placeholder="页码.html（可选）"></textarea></label>
+            <label><span>分类匹配模板</span><textarea id="batchCategoryPattern" class="input input--sans" rows="1" placeholder="https://www.example.com/分类/"></textarea></label>
+            <label><span>翻页模板</span><textarea id="batchPagedUrlTemplate" class="input input--sans" rows="1" placeholder="https://www.example.com/分类/页码.html"></textarea></label>
+            <label><span>第一页差异</span><textarea id="batchFirstPageDiff" class="input input--sans" rows="1" placeholder="页码.html（可选）"></textarea></label>
           </div>
         </div>
         <div id="batchUrlPanelRegex" class="batch-url-panel hidden">
           <div class="batch-layout-grid template-grid batch-url-form">
-            <label><span>正则表达式</span><textarea id="batchUrlPattern" class="input-url batch-url-input" rows="1" placeholder="如：/sort/xuanhuan/"></textarea></label>
-            <label><span>替换为</span><textarea id="batchUrlReplacement" class="input-url batch-url-input" rows="1" placeholder="如：/sort/分类/"></textarea></label>
+            <label><span>正则表达式</span><textarea id="batchUrlPattern" class="input input--sans" rows="1" placeholder="如：/sort/xuanhuan/"></textarea></label>
+            <label><span>替换为</span><textarea id="batchUrlReplacement" class="input input--sans" rows="1" placeholder="如：/sort/分类/"></textarea></label>
             <label><input type="checkbox" id="batchRegexGlobal" checked> 全局替换（g）</label>
             <label><input type="checkbox" id="batchRegexIgnoreCase"> 忽略大小写（i）</label>
           </div>
@@ -270,11 +270,11 @@
         <h3 id="styleTemplateModalTitle">新增样式模板</h3>
         <input type="hidden" id="editingTemplateId">
         <div class="batch-layout-grid template-grid">
-          <label>模板名称 <input type="text" id="templateName" placeholder="如：三列紧凑"></label>
-          <label>layout_flexGrow <input type="number" id="tplFlexGrow" value="1" step="1"></label>
-          <label>layout_flexShrink <input type="number" id="tplFlexShrink" value="0" step="1"></label>
-          <label>layout_alignSelf <input type="text" id="tplAlignSelf" value="auto"></label>
-          <label>layout_flexBasisPercent <input type="number" id="tplFlexBasisPercent" value="-1" step="0.1"></label>
+          <label>模板名称 <input type="text" id="templateName" class="input input--50" placeholder="如：三列紧凑"></label>
+          <label>layout_flexGrow <input type="number" id="tplFlexGrow" class="input input--50" value="1" step="1"></label>
+          <label>layout_flexShrink <input type="number" id="tplFlexShrink" class="input input--50" value="0" step="1"></label>
+          <label>layout_alignSelf <input type="text" id="tplAlignSelf" class="input input--50" value="auto"></label>
+          <label>layout_flexBasisPercent <input type="number" id="tplFlexBasisPercent" class="input input--50" value="-1" step="0.1"></label>
           <label>layout_wrapBefore <input type="checkbox" id="tplWrapBefore"></label>
         </div>
         <div class="modal-actions">
@@ -287,7 +287,7 @@
     <div id="defaultTemplateModal" class="modal hidden">
       <div class="modal-content">
         <h3>样式模板管理</h3>
-        <input id="templateSearchInput" class="batch-select batch-modal-select" placeholder="搜索模板名称" />
+        <input id="templateSearchInput" class="input input--sans batch-modal-select" placeholder="搜索模板名称" />
         <div id="templateManageList" class="template-manage-list"></div>
         <div class="modal-actions">
           <button id="templateManageAddBtn" class="btn btn-primary">新增模板</button>

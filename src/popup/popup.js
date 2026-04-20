@@ -472,16 +472,16 @@ function renderFields() {
     ? `<div class="index-row">
         <label>索引范围</label>
         <div class="index-inputs">
-          <input type="text" id="indexStart" class="input-field index-field" value="${escapeHtml(fieldIndex.start || '')}" placeholder="0">
+          <input type="text" id="indexStart" class="input input--center input--50" value="${escapeHtml(fieldIndex.start || '')}" placeholder="0">
           <span class="index-sep">至</span>
-          <input type="text" id="indexEnd" class="input-field index-field" value="${escapeHtml(fieldIndex.end || '')}" placeholder="-1">
+          <input type="text" id="indexEnd" class="input input--center input--50" value="${escapeHtml(fieldIndex.end || '')}" placeholder="-1">
           <button id="indexApplyBtn" class="btn btn-action btn-index-apply">确认</button>
         </div>
       </div>`
     : `<div class="index-row index-row-single">
         <label>索引</label>
         <div class="index-inputs-single">
-          <input type="text" id="indexSingle" class="input-field index-field" value="${escapeHtml(fieldIndex.single || '')}" placeholder="0">
+          <input type="text" id="indexSingle" class="input input--center input--50" value="${escapeHtml(fieldIndex.single || '')}" placeholder="0">
           <button id="indexApplyBtn" class="btn btn-action btn-index-apply">确认</button>
         </div>
       </div>`;
@@ -490,7 +490,7 @@ function renderFields() {
     <div class="field-item">
       <label>${field.label}${field.required ? ' <span class="required">*</span>' : ''}</label>
       <div class="field-value">
-        <textarea id="fieldValue" class="input-field" rows="1"
+        <textarea id="fieldValue" class="input" rows="1"
           placeholder="请输入或选择" ${isManual ? '' : 'readonly'}>${escapeHtml(value)}</textarea>
       </div>
       <div class="field-actions">
@@ -1370,7 +1370,7 @@ function handleReset() {
   // Reset debug panel
   document.getElementById('debugKey').value = '';
   document.getElementById('debugResult').textContent = '';
-  const debugIpParts = document.querySelectorAll('.debug-ip-part');
+  const debugIpParts = document.querySelectorAll('#debugIp1, #debugIp2, #debugIp3, #debugIp4');
   debugIpParts.forEach(el => el.value = '');
   document.getElementById('debugPort').value = '';
   if (debugWs) {
