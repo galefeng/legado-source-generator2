@@ -243,8 +243,8 @@ function renderHeaderItems() {
     const key = (item?.key || '').replace(/"/g, '&quot;');
     const value = (item?.value || '').replace(/"/g, '&quot;');
     return `<div class="advanced-item" data-index="${index}">
-      <textarea class="input advanced-key" data-role="key" rows="1" placeholder="Header 名称，例如 Referer">${key}</textarea>
-      <textarea class="input advanced-value" data-role="value" rows="1" placeholder="Header 值">${value}</textarea>
+      <textarea class="input advanced-key" data-role="key" rows="1" placeholder="键">${key}</textarea>
+      <textarea class="input advanced-value" data-role="value" rows="1" placeholder="值">${value}</textarea>
       <button class="btn btn-clear advanced-remove" data-action="remove" type="button">删除</button>
     </div>`;
   }).join('');
