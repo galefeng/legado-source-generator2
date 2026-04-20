@@ -1605,9 +1605,23 @@ body {
   line-height: 1.4;
 }
 
+.debug-tutorial-entry {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.debug-tutorial-entry .btn {
+  min-width: 120px;
+}
+
 .debug-actions {
   display: flex;
   gap: 8px;
+}
+
+.debug-actions .btn-primary {
+  flex: 1;
 }
 
 .debug-result {
@@ -1645,4 +1659,40 @@ body {
 
 .debug-result .debug-line-info {
   color: var(--accent);
+}
+
+.debug-tutorial-content {
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.debug-tutorial-content h4 {
+  margin: 12px 0 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.debug-tutorial-content h4:first-child {
+  margin-top: 0;
+}
+
+.debug-tutorial-content p {
+  margin: 8px 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.debug-tutorial-content pre {
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-all;
 }

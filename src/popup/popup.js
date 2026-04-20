@@ -1009,6 +1009,12 @@ function bindEvents() {
   document.getElementById('closeUpdateBtn').addEventListener('click', () => {
     document.getElementById('updateModal').classList.add('hidden');
   });
+  document.getElementById('debugTutorialBtn')?.addEventListener('click', () => {
+    document.getElementById('debugTutorialModal')?.classList.remove('hidden');
+  });
+  document.getElementById('closeDebugTutorialBtn')?.addEventListener('click', () => {
+    document.getElementById('debugTutorialModal')?.classList.add('hidden');
+  });
 
   document.getElementById('captureSearchUrlBtn').addEventListener('click', handleCaptureSearchUrl);
   document.getElementById('searchCaptureCancelListenBtn').addEventListener('click', handleCancelSearchListen);

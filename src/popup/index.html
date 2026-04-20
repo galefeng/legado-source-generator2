@@ -129,6 +129,9 @@
     </div>
 
     <div id="debugPanel" class="debug-panel hidden">
+      <div class="debug-tutorial-entry">
+        <button id="debugTutorialBtn" class="btn btn-primary">教程</button>
+      </div>
       <div class="debug-section">
         <label class="debug-label">连接设置 <span class="debug-hint-inline">（打开阅读→我的→Web服务→填入IP和端口号）</span></label>
         <div class="debug-config-row">
@@ -219,6 +222,31 @@
         </div>
         <div class="modal-actions">
           <button id="closeUpdateBtn" class="btn btn-primary">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="debugTutorialModal" class="modal hidden">
+      <div class="modal-content">
+        <h3>调试教程</h3>
+        <div class="debug-tutorial-content">
+          <p><strong>（打开阅读→我的→Web服务→填入IP和端口号）</strong></p>
+          <h4>一、日志调试（输入 / 输出）</h4>
+          <p><strong>看输入</strong><br>把这段加在规则最前面：</p>
+          <pre>&lt;js&gt;java.log("输入" + result);&lt;/js&gt;你的原规则</pre>
+          <p><strong>看输出</strong><br>把这段加在规则最后面：</p>
+          <pre>你的原规则&lt;js&gt;java.log("输出" + result);&lt;/js&gt;</pre>
+          <p><strong>向别人提问前一定要加上这两个再调试！！！</strong>，调完删掉日志。</p>
+
+          <h4>二、webView 是什么，什么时候开</h4>
+          <p><strong>webView 的作用</strong><br>很多网站内容是动态加载的。不开 webView 时，规则可能抓不到最终页面内容。开了 webView，相当于“让页面先跑起来再抓”。</p>
+          <p><strong>什么时候建议开</strong><br>规则看起来没错，但结果一直空。<br>目录页、正文页总是抓不到。<br>下一页链接存在，但翻页不生效。<br>某字段不开拿不到，开了马上正常。</p>
+          <p><strong>什么时候不要开</strong><br>已经能正常抓到，就不要开。<br>全字段都开会变慢，优先只开有问题的字段。</p>
+          <p><strong>新手推荐顺序</strong><br>先全部不开，先调规则。<br>哪个字段有问题，只给哪个字段开 webView。<br>常见优先尝试字段：书籍链接、目录链接、章节链接、下一页链接。</p>
+          <p><strong>一句话结论</strong><br>能不开就不开，出问题再精准开启。</p>
+        </div>
+        <div class="modal-actions">
+          <button id="closeDebugTutorialBtn" class="btn btn-primary">关闭</button>
         </div>
       </div>
     </div>
