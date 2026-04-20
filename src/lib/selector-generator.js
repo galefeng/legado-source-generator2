@@ -343,12 +343,12 @@ function getAnchoredSelector(element, root, blacklist) {
 function getIntersectionSelector(el1, el2, options = {}) {
   const blacklist = options.blacklist || DEFAULT_BLACKLIST;
 
-  // First, try to find the "sibling level" — the lowest ancestors of el1 and el2
-  // that are siblings. This produces better list item selectors because child
-  // field selectors can then be relative to the list item container.
-  // Example: clicking two <a> inside two <li> siblings → list item = <li>, not <a>
-  const siblingSelector = getSiblingLevelSelector(el1, el2, blacklist);
-  if (siblingSelector) return siblingSelector;
+  // 优先使用完整路径的列表项选择器，避免只返回兄弟层级选择器导致越界匹配。
+  const siblingPair = getSiblingLevelPair(el1, el2);
+  if (siblingPair) {
+    const fullPathSelector = buildFullPathListSelector(siblingPair.item1, siblingPair.item2, blacklist);
+    if (fullPathSelector) return fullPathSelector;
+  }
 
   // Fallback: original logic using the clicked elements directly
   const classes1 = getValidClasses(el1, blacklist);
@@ -426,96 +426,95 @@ function getIntersectionSelector(el1, el2, options = {}) {
   return null;
 }
 
-/**
- * Find the "sibling level" selector for two elements.
- * Walks up from both elements until their ancestors are siblings,
- * then generates an intersection selector for those sibling ancestors.
- * 
- * Example: el1=<a> inside <li>, el2=<a> inside <li class="style">
- *   → siblings are the two <li> elements
- *   → returns "li" as the list item selector
- *   → child selectors like "a@text" work relative to <li>
- */
-function getSiblingLevelSelector(el1, el2, blacklist) {
-  // Walk up from both elements simultaneously to find the first pair of siblings
-  let a1 = el1, a2 = el2;
-  const maxDepth = 10;
-  
-  for (let i = 0; i < maxDepth; i++) {
-    const p1 = a1.parentElement;
-    const p2 = a2.parentElement;
-    
-    if (!p1 || !p2 || p1 === document.body || p2 === document.body) break;
-    
-    // Check if p1 and p2 are siblings (same parent)
-    if (p1.parentElement === p2.parentElement) {
-      // Found the sibling level: p1 and p2 are the list item candidates
-      return buildIntersectionForPair(p1, p2, blacklist);
-    }
-    
-    // Walk up the side that is deeper
-    if (p1.contains && p1.contains(p2)) {
-      a1 = p1;
-    } else if (p2.contains && p2.contains(p1)) {
-      a2 = p2;
-    } else {
-      a1 = p1;
-      a2 = p2;
-    }
+function getSiblingLevelPair(el1, el2) {
+  // 当前层已经是兄弟节点时，直接作为列表项候选。
+  if (el1 !== el2 && el1.parentElement && el1.parentElement === el2.parentElement) {
+    return { item1: el1, item2: el2 };
   }
-  
-  return null;
+
+  // 不同深度场景：通过最近公共祖先收敛到分叉层，得到真正的同层候选。
+  return getSiblingPairViaLca(el1, el2);
 }
 
-/**
- * Build an intersection selector for a pair of sibling-level elements.
- * Tries class-based selectors first, then tag-only.
- */
-function buildIntersectionForPair(el1, el2, blacklist) {
+function getSiblingPairViaLca(el1, el2) {
+  const path1 = [];
+  const path2 = [];
+
+  for (let cur = el1; cur && cur !== document.body && cur !== document.documentElement; cur = cur.parentElement) {
+    path1.push(cur);
+  }
+  for (let cur = el2; cur && cur !== document.body && cur !== document.documentElement; cur = cur.parentElement) {
+    path2.push(cur);
+  }
+
+  let i = path1.length - 1;
+  let j = path2.length - 1;
+  let lca = null;
+
+  while (i >= 0 && j >= 0 && path1[i] === path2[j]) {
+    lca = path1[i];
+    i--;
+    j--;
+  }
+
+  if (!lca || i < 0 || j < 0) return null;
+
+  const child1 = path1[i];
+  const child2 = path2[j];
+  if (!child1 || !child2 || child1 === child2) return null;
+  if (child1.parentElement !== lca || child2.parentElement !== lca) return null;
+
+  return { item1: child1, item2: child2 };
+}
+
+function buildFullPathListSelector(el1, el2, blacklist) {
   const tag1 = el1.tagName.toLowerCase();
   const tag2 = el2.tagName.toLowerCase();
-  const sameTag = tag1 === tag2;
-  
+  if (tag1 !== tag2) return null;
+
+  const parent = el1.parentElement;
+  if (!parent || parent !== el2.parentElement || ['BODY', 'HTML', '#document'].includes(parent.tagName)) {
+    return null;
+  }
+
   const classes1 = getValidClasses(el1, blacklist);
   const classes2 = getValidClasses(el2, blacklist);
   const commonClasses = classes1.filter(cls => classes2.includes(cls));
-  
-  // Try: tag.commonClass (e.g., li.chapter-item)
-  if (sameTag && commonClasses.length > 0) {
-    const safeClasses = commonClasses.map(cls => cls.replace(/[^\w-]/g, '\\$&'));
-    const selector = `${tag1}.${safeClasses.join('.')}`;
-    try {
-      const count = document.querySelectorAll(selector).length;
-      if (count > 1) return selector;
-    } catch (e) { /* skip */ }
-  }
-  
-  // Try: parent > tag (e.g., div.chapter > li)
-  if (sameTag) {
-    const parent = el1.parentElement;
-    if (parent && !['BODY', 'HTML', '#document'].includes(parent.tagName)) {
-      const parentTag = parent.tagName.toLowerCase();
-      const parentId = parent.id ? `#${parent.id}` : '';
-      const parentClasses = getValidClasses(parent, blacklist);
-      const parentClassStr = parentClasses.length > 0
-        ? parentClasses.map(c => `.${c.replace(/[^\w-]/g, '\\$&')}`).join('')
-        : '';
-      
-      const baseSelector = `${parentTag}${parentId}${parentClassStr} > ${tag1}`;
-      try {
-        const count = document.querySelectorAll(baseSelector).length;
-        if (count > 1) return baseSelector;
-      } catch (e) { /* skip */ }
+  const itemClassStr = commonClasses.length > 0
+    ? commonClasses.map(c => `.${c.replace(/[^\w-]/g, '\\$&')}`).join('')
+    : '';
+  const itemSelector = `${tag1}${itemClassStr}`;
+
+  const parentPath = buildAncestorPath(parent, blacklist);
+  const fullSelector = parentPath ? `${parentPath} > ${itemSelector}` : itemSelector;
+
+  try {
+    const matches = Array.from(document.querySelectorAll(fullSelector));
+    if (matches.length > 1 && matches.includes(el1) && matches.includes(el2)) {
+      return fullSelector;
     }
-    
-    // Just the tag (e.g., li)
-    try {
-      const count = document.querySelectorAll(tag1).length;
-      if (count > 1) return tag1;
-    } catch (e) { /* skip */ }
-  }
-  
+  } catch (e) { /* skip */ }
+
   return null;
+}
+
+function buildAncestorPath(node, blacklist) {
+  const parts = [];
+  let current = node;
+
+  while (current && !['BODY', 'HTML', '#document'].includes(current.tagName)) {
+    const tag = current.tagName.toLowerCase();
+    if (current.id) {
+      parts.unshift(`${tag}#${current.id.replace(/[^\w-]/g, '\\$&')}`);
+    } else {
+      const classes = getValidClasses(current, blacklist).slice(0, 2);
+      const classStr = classes.map(c => `.${c.replace(/[^\w-]/g, '\\$&')}`).join('');
+      parts.unshift(`${tag}${classStr}`);
+    }
+    current = current.parentElement;
+  }
+
+  return parts.join(' > ');
 }
 
 if (typeof module !== 'undefined' && module.exports) {

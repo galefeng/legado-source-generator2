@@ -845,6 +845,7 @@ function handleIndexApply() {
     rule.fields[field.key].value = jsCode;
   } else {
     const singleVal = fieldData.listIndex.single ? parseInt(fieldData.listIndex.single, 10) : 0;
+    const selectedTag = fieldData.tagName || '';
 
     let jsCode;
     if (singleVal !== 0) {
@@ -863,7 +864,13 @@ function handleIndexApply() {
     var index = ${index};
     return ${returnExpr};`);
     } else {
-      jsCode = baseSelector;
+      if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) {
+        jsCode = selectedTag === 'a' ? baseSelector + '@href' : baseSelector + ' a@href';
+      } else if (field.key === 'coverUrl') {
+        jsCode = selectedTag === 'img' ? baseSelector + '@src' : baseSelector + ' img@src';
+      } else {
+        jsCode = baseSelector + '@text';
+      }
     }
 
     rule.fields[field.key].value = jsCode;
@@ -1505,6 +1512,7 @@ function handleSelectorSelected(message) {
     value: legadoRule,
     state: 'selected',
     rawSelector: selector,
+    tagName: message.tagName || '',
     previews: previews || [],
   };
   rule.fieldStates[step] = 'selected';
