@@ -290,6 +290,10 @@ body {
   flex-wrap: wrap;
 }
 
+.field-actions .btn-clear {
+  margin-left: auto;
+}
+
 /* ── Index Row ──────────────────────────── */
 
 .index-row {

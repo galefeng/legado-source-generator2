@@ -504,7 +504,7 @@ function renderFields() {
         </button>
         ${fieldState === 'selected' || fieldState === 'manual' ? `
         ${isLinkField ? `<button id="webViewBtn" class="btn btn-action${fieldData.webView ? ' btn-active' : ''}">webView${fieldData.webView ? ' ✓' : ''}</button>` : ''}
-        <button id="clearBtn" class="btn btn-action btn-clear">清除</button>
+        <button id="clearBtn" class="btn btn-action btn-clear">清空</button>
         ` : ''}
       </div>
       ${indexHTML}
