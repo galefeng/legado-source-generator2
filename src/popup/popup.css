@@ -1541,6 +1541,83 @@ body {
   min-height: 56px;
 }
 
+/* ── Advanced Panel ─────────────────────── */
+
+.advanced-panel {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.advanced-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.advanced-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.advanced-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.advanced-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.advanced-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.advanced-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.advanced-item {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.advanced-item .advanced-key {
+  min-width: 0;
+}
+
+.advanced-item .advanced-value {
+  min-width: 0;
+}
+
+.advanced-item .advanced-remove {
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .advanced-item {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Debug Panel ─────────────────────────── */
 
 .debug-panel {

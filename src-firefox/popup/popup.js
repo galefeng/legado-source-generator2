@@ -83,7 +83,27 @@ let state = {
   bookSourceUrl: '',
   // Captured search configuration
   searchConfig: null, // { method, url, charset, body, pageTemplate }
+  headerItems: [],
+  enableCfShield: false,
 };
+
+const CF_LOGIN_CHECK_JS = `var resultUrl = result.url();
+var resultCode = result.code();
+var resultBoDy = result.body();
+if (/_cf_|ge_ua|verify.php/gi.test(resultBoDy) && resultCode >= 403) {
+  if (key) {
+    url = baseUrl + java.ruleUrl;
+  }
+  cookie.removeCookie(baseUrl);
+  result = java.startBrowserAwait(resultUrl, "验证", false);
+  if (key) {
+    url =
+      org.jsoup.Jsoup.parse(result.body())
+        .select('meta[property="og:url"]')
+        .attr("content") || url;
+  }
+}
+result;`;
 
 function getFields() {
   return RULE_TYPES[state.activeRuleType].fields;
@@ -101,6 +121,7 @@ function renderModeTabs() {
     { key: 'searchUrl', label: '搜索URL' },
     { key: 'exploreUrl', label: '发现页URL' },
     { key: 'rules', label: '规则' },
+    { key: 'advanced', label: '进阶' },
   ];
 
   container.innerHTML = modes.map(m => {
@@ -121,6 +142,7 @@ function renderModeTabs() {
 function updateEditorVisibility() {
   const searchEditor = document.getElementById('searchUrlEditor');
   const exploreEditor = document.getElementById('exploreUrlEditor');
+  const advancedPanel = document.getElementById('advancedPanel');
   const ruleTabs = document.getElementById('ruleTypeTabs');
   const stepIndicator = document.querySelector('.step-indicator');
   const formArea = document.querySelector('.form-area');
@@ -129,6 +151,7 @@ function updateEditorVisibility() {
   if (state.activeMode === 'searchUrl') {
     searchEditor?.classList.remove('hidden');
     exploreEditor?.classList.add('hidden');
+    advancedPanel?.classList.add('hidden');
     ruleTabs?.classList.add('hidden');
     stepIndicator?.classList.add('hidden');
     formArea?.classList.add('hidden');
@@ -136,6 +159,15 @@ function updateEditorVisibility() {
   } else if (state.activeMode === 'exploreUrl') {
     searchEditor?.classList.add('hidden');
     exploreEditor?.classList.remove('hidden');
+    advancedPanel?.classList.add('hidden');
+    ruleTabs?.classList.add('hidden');
+    stepIndicator?.classList.add('hidden');
+    formArea?.classList.add('hidden');
+    navButtons?.classList.add('hidden');
+  } else if (state.activeMode === 'advanced') {
+    searchEditor?.classList.add('hidden');
+    exploreEditor?.classList.add('hidden');
+    advancedPanel?.classList.remove('hidden');
     ruleTabs?.classList.add('hidden');
     stepIndicator?.classList.add('hidden');
     formArea?.classList.add('hidden');
@@ -143,6 +175,7 @@ function updateEditorVisibility() {
   } else {
     searchEditor?.classList.add('hidden');
     exploreEditor?.classList.add('hidden');
+    advancedPanel?.classList.add('hidden');
     ruleTabs?.classList.remove('hidden');
     stepIndicator?.classList.remove('hidden');
     formArea?.classList.remove('hidden');
@@ -167,6 +200,14 @@ function loadState() {
       document.getElementById('bookSourceName').value = state.bookSourceName || '';
       document.getElementById('bookSourceUrl').value = state.bookSourceUrl || '';
       document.getElementById('searchUrlTemplate').value = state.searchUrl || '';
+      const migrated = Array.isArray(state.headerItems)
+        ? state.headerItems
+        : [
+            { key: 'User-Agent', value: state.advancedHeaderUa || '' },
+            { key: 'Referer', value: state.advancedHeaderRefer || '' },
+          ].filter(item => item.value);
+      state.headerItems = migrated;
+      document.getElementById('enableCfShield').checked = !!state.enableCfShield;
       setTimeout(() => {
         autoResizeTextarea(document.getElementById('bookSourceName'));
         autoResizeTextarea(document.getElementById('bookSourceUrl'));
@@ -179,14 +220,75 @@ function loadState() {
     renderFields();
     updateNavButtons();
     renderFieldStatusSummary();
+    renderHeaderItems();
     updateEditorVisibility();
   });
+}
+
+function getDefaultRefer() {
+  const url = (document.getElementById('bookSourceUrl')?.value || '').trim();
+  if (!url) return '';
+  try {
+    return new URL(url).origin;
+  } catch {
+    return '';
+  }
+}
+
+function renderHeaderItems() {
+  const container = document.getElementById('advancedHeadersList');
+  if (!container) return;
+  const items = Array.isArray(state.headerItems) ? state.headerItems : [];
+  container.innerHTML = items.map((item, index) => {
+    const key = (item?.key || '').replace(/"/g, '&quot;');
+    const value = (item?.value || '').replace(/"/g, '&quot;');
+    return `<div class="advanced-item" data-index="${index}">
+      <textarea class="input advanced-key" data-role="key" rows="1" placeholder="Header 名称，例如 Referer">${key}</textarea>
+      <textarea class="input advanced-value" data-role="value" rows="1" placeholder="Header 值">${value}</textarea>
+      <button class="btn btn-clear advanced-remove" data-action="remove" type="button">删除</button>
+    </div>`;
+  }).join('');
+  container.querySelectorAll('textarea.input').forEach(el => autoResizeTextarea(el));
+}
+
+function collectHeaderItemsFromDom() {
+  const container = document.getElementById('advancedHeadersList');
+  if (!container) return [];
+  const rows = Array.from(container.querySelectorAll('.advanced-item'));
+  return rows.map(row => {
+    const key = row.querySelector('[data-role="key"]')?.value?.trim() || '';
+    const value = row.querySelector('[data-role="value"]')?.value?.trim() || '';
+    return { key, value };
+  }).filter(item => item.key || item.value);
+}
+
+function addHeaderItem(key = '', value = '') {
+  if (!Array.isArray(state.headerItems)) state.headerItems = [];
+  state.headerItems.push({ key, value });
+  renderHeaderItems();
+  saveState();
+}
+
+function addDefaultUserAgentHeader() {
+  if (!Array.isArray(state.headerItems)) state.headerItems = [];
+  state.headerItems.push({ key: 'User-Agent', value: navigator.userAgent || '' });
+  renderHeaderItems();
+  saveState();
+}
+
+function addDefaultRefererHeader() {
+  if (!Array.isArray(state.headerItems)) state.headerItems = [];
+  state.headerItems.push({ key: 'Referer', value: getDefaultRefer() });
+  renderHeaderItems();
+  saveState();
 }
 
 function saveState() {
   state.bookSourceName = document.getElementById('bookSourceName').value;
   state.bookSourceUrl = document.getElementById('bookSourceUrl').value;
   state.searchUrl = document.getElementById('searchUrlTemplate').value;
+  state.headerItems = collectHeaderItemsFromDom();
+  state.enableCfShield = !!document.getElementById('enableCfShield')?.checked;
   chrome.storage.local.set({ legadoSourceState: state });
 }
 
@@ -839,6 +941,21 @@ function bindEvents() {
     state.searchConfig = null;
     saveState();
   });
+  document.getElementById('advancedHeadersList')?.addEventListener('input', saveState);
+  document.getElementById('advancedHeadersList')?.addEventListener('click', (e) => {
+    const target = e.target.closest('[data-action="remove"]');
+    if (!target) return;
+    const row = target.closest('.advanced-item');
+    const index = Number(row?.dataset?.index);
+    if (Number.isNaN(index) || !Array.isArray(state.headerItems)) return;
+    state.headerItems.splice(index, 1);
+    renderHeaderItems();
+    saveState();
+  });
+  document.getElementById('addHeaderItemBtn')?.addEventListener('click', () => addHeaderItem('', ''));
+  document.getElementById('addUaHeaderBtn')?.addEventListener('click', addDefaultUserAgentHeader);
+  document.getElementById('addRefererHeaderBtn')?.addEventListener('click', addDefaultRefererHeader);
+  document.getElementById('enableCfShield')?.addEventListener('change', saveState);
   document.getElementById('insertPagePlaceholderBtn').addEventListener('click', () => {
     const el = document.getElementById('searchUrlTemplate');
     const pos = el.selectionStart;
@@ -1039,6 +1156,19 @@ function generateJson() {
     searchUrl: state.searchUrl || '',
     exploreUrl: exploreUrlValue,
   };
+
+  const items = Array.isArray(state.headerItems) ? state.headerItems : [];
+  const header = {};
+  items.forEach(item => {
+    const key = (item?.key || '').trim();
+    const value = (item?.value || '').trim();
+    if (key && value) {
+      header[key] = value;
+    }
+  });
+  result.header = header;
+  result.loginCheckJs = state.enableCfShield ? CF_LOGIN_CHECK_JS : '';
+
   return result;
 }
 

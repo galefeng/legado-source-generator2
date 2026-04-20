@@ -128,6 +128,26 @@
       </div>
     </div>
 
+    <div id="advancedPanel" class="advanced-panel hidden">
+      <div class="advanced-section">
+        <div class="advanced-section-head">
+          <label class="advanced-label">请求头（JSON）</label>
+          <div class="advanced-actions">
+            <button id="addUaHeaderBtn" class="btn btn-action btn-sm" type="button">写 UA</button>
+            <button id="addRefererHeaderBtn" class="btn btn-action btn-sm" type="button">写 Referer</button>
+            <button id="addHeaderItemBtn" class="btn btn-action btn-sm" type="button">添加请求头</button>
+          </div>
+        </div>
+        <div id="advancedHeadersList" class="advanced-list"></div>
+      </div>
+      <div class="advanced-section">
+        <label class="advanced-checkbox">
+          <input id="enableCfShield" type="checkbox">
+          <span>开启过 Cloudflare 盾</span>
+        </label>
+      </div>
+    </div>
+
     <div id="debugPanel" class="debug-panel hidden">
       <div class="debug-tutorial-entry">
         <button id="debugTutorialBtn" class="btn btn-primary">教程</button>
