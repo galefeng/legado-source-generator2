@@ -647,31 +647,63 @@ function handleManualInput() {
   }
 }
 
+function resolvePreviewSelector(input) {
+  const raw = (input || '').trim();
+  if (!raw) return '';
+
+  const canQuery = (sel) => {
+    try {
+      document.createElement('div').querySelector(sel);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  if (canQuery(raw)) return raw;
+
+  let candidate = raw
+    .replace(/^<js>\s*/i, '')
+    .replace(/\s*<\/js>$/i, '')
+    .trim();
+
+  candidate = candidate.replace(/\s*@[^@\s]+$/, '').trim();
+
+  if (candidate && canQuery(candidate)) return candidate;
+
+  return '';
+}
+
 function previewManualSelector(fieldKey, selector) {
-  // Validate selector locally first
-  try {
-    document.createElement('div').querySelector(selector);
-  } catch (e) {
-    return; // Invalid CSS selector, skip preview
+  const previewSelector = resolvePreviewSelector(selector);
+
+  // Always set rawSelector so the rule label shows even if preview fails
+  const rule = getRuleState();
+  const fieldData = rule.fields[fieldKey];
+  if (fieldData) {
+    fieldData.rawSelector = previewSelector || selector;
+    // Set bookListSelector for list fields so subsequent fields can scope selection
+    const listFields = ['bookList', 'chapterList'];
+    if (listFields.includes(fieldKey)) {
+      rule.bookListSelector = previewSelector || selector;
+    }
+    saveState();
+    renderFields();
   }
+
+  if (!previewSelector) return;
 
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     if (!tabs[0]) return;
     chrome.tabs.sendMessage(tabs[0].id, {
       action: 'previewSelector',
-      selector: selector,
+      selector: previewSelector,
     }, (response) => {
       if (chrome.runtime.lastError || !response) return;
       const rule = getRuleState();
       const fieldData = rule.fields[fieldKey];
       if (fieldData) {
         fieldData.previews = response.previews || [];
-        fieldData.rawSelector = selector;
-        // Set bookListSelector for list fields so subsequent fields can scope selection
-        const listFields = ['bookList', 'chapterList'];
-        if (listFields.includes(fieldKey)) {
-          rule.bookListSelector = selector;
-        }
         saveState();
         renderFields();
       }
