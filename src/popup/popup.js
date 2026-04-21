@@ -1093,6 +1093,17 @@ function goToPrevStep() {
   }
 }
 
+function goToStep(index) {
+  const rule = getRuleState();
+  if (index === rule.currentStep) return;
+  rule.currentStep = index;
+  saveState();
+  updateStepIndicator();
+  renderFields();
+  updateNavButtons();
+  renderFieldStatusSummary();
+}
+
 function updateNavButtons() {
   const fields = getFields();
   const rule = getRuleState();
@@ -1107,7 +1118,7 @@ function renderFieldStatusSummary() {
 
   const fields = getFields();
   const rule = getRuleState();
-  const summary = fields.map(f => {
+  const summary = fields.map((f, index) => {
     const fieldState = rule.fieldStates[f.key] || 'pending';
     const fieldData = rule.fields[f.key] || {};
     let stateIcon;
@@ -1123,10 +1134,20 @@ function renderFieldStatusSummary() {
       }[fieldState];
     }
 
-    return `<span class="status-item" data-field="${f.key}">${stateIcon} ${f.label}</span>`;
+    const activeClass = index === rule.currentStep ? ' active' : '';
+    return `<span class="status-item${activeClass}" data-field="${f.key}" data-step-index="${index}">${stateIcon} ${f.label}</span>`;
   }).join(' | ');
 
   summaryContainer.innerHTML = summary;
+
+  summaryContainer.querySelectorAll('.status-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const stepIndex = parseInt(item.dataset.stepIndex, 10);
+      if (!Number.isNaN(stepIndex)) {
+        goToStep(stepIndex);
+      }
+    });
+  });
 }
 
 function bindEvents() {
