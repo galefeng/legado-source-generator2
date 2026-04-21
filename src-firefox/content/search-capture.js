@@ -21,8 +21,49 @@
   // Preset keyword to fill into the search input
   const PRESET_KEYWORD = '我的';
 
+  // SessionStorage key for pending capture across page navigations
+  const PENDING_CAPTURE_KEY = 'legado_pending_search_capture';
+
   // Track which input(s) we filled
   let filledInputs = [];  // { element, originalValue }
+
+  function savePendingCapture(data) {
+    try {
+      sessionStorage.setItem(PENDING_CAPTURE_KEY, JSON.stringify({
+        ...data,
+        timestamp: Date.now(),
+      }));
+    } catch (e) {}
+  }
+
+  function clearPendingCapture() {
+    try {
+      sessionStorage.removeItem(PENDING_CAPTURE_KEY);
+    } catch (e) {}
+  }
+
+  function findStandaloneSearchInputs(searchButton) {
+    const buttonRect = searchButton.getBoundingClientRect();
+    return Array.from(document.querySelectorAll('input[type="search"], input[type="text"], input:not([type])'))
+      .filter(inp => {
+        if (inp.disabled || inp.readOnly) return false;
+        const rect = inp.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      })
+      .map(inp => {
+        const hint = [inp.name || '', inp.id || '', inp.placeholder || '', String(inp.className || '')].join(' ').toLowerCase();
+        const rect = inp.getBoundingClientRect();
+        const dx = Math.abs(rect.left - buttonRect.left);
+        const dy = Math.abs(rect.top - buttonRect.top);
+        let score = (dx < 420 && dy < 220) ? 2 : 0;
+        if (/search|query|keyword|kw|\u641c|\u67e5|\u4e66\u540d/.test(hint)) score += 3;
+        return { inp, score };
+      })
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(item => item.inp)
+      .slice(0, 1);
+  }
 
   /**
    * Detect charset from page <meta> tags
@@ -333,6 +374,7 @@
     restoreOriginals();
     stopUrlPolling();
     restoreFilledInputs();
+    clearPendingCapture();
 
     chrome.runtime.sendMessage({
       action: 'searchCaptured',
@@ -344,15 +386,12 @@
     });
   }
 
-  function submitFormAsGetInNewTab(form, submitter) {
+  function submitFormAsGetInNewTab(form) {
     const originalTarget = form.getAttribute('target');
     form.setAttribute('target', '_blank');
     try {
-      if (submitter && typeof form.requestSubmit === 'function') {
-        form.requestSubmit(submitter);
-      } else {
-        form.submit();
-      }
+      // 使用 form.submit() 直接提交，不触发 submit 事件，避免递归调用 interceptFormSubmits
+      form.submit();
     } finally {
       if (originalTarget === null) {
         form.removeAttribute('target');
@@ -374,11 +413,33 @@
       // - <button type="submit">, <input type="submit">, <input type="button">
       // - <a> links that might trigger search
       const target = e.target;
-      const searchButton = target.closest('button, input[type="submit"], input[type="button"], a[href]');
+      const searchButton = target.closest('button, input[type="submit"], input[type="button"], a[href], [role="button"]');
       if (!searchButton) return;
 
+      if (!lockedSearchButton) {
+        lockedSearchButton = searchButton;
+      }
+      if (searchButton !== lockedSearchButton) return;
+
       const searchInfo = findSearchForm(searchButton);
-      if (!searchInfo) return;
+      if (!searchInfo) {
+        const standaloneInputs = findStandaloneSearchInputs(searchButton);
+        if (standaloneInputs.length) {
+          fillAllInputs(standaloneInputs);
+        }
+
+        savePendingCapture({
+          mode: 'await-navigation',
+          method: 'GET',
+          body: '',
+          charset: detectPageCharset(),
+          forms: detectSearchForms(),
+          originalUrl: window.location.href,
+        });
+
+        console.log('[search-capture] Armed pending capture for non-form search button');
+        return;
+      }
 
       // For links, prevent default. For forms, let them submit naturally.
       if (searchInfo.isLink) {
@@ -395,27 +456,21 @@
       });
 
       if (searchInfo.isLink) {
-        // It's a link — let website JS handle it first, fallback after a delay
+        // It's a link — capture and open in new tab directly
         e.preventDefault();
-        // Don't stop propagation so website JS click handlers can run
+        e.stopImmediatePropagation();
 
         const linkUrl = searchInfo.linkUrl;
         const charset = detectPageCharset();
         const forms = detectSearchForms();
 
-        // Schedule fallback: if no other strategy (fetch/XHR/URL polling)
-        // captures within 300ms, use the link URL directly.
-        setTimeout(() => {
-          if (!captureActive) return;
-
-          const urlWithPlaceholder = replaceKeywordInLinkUrl(linkUrl);
-          sendCapturedData('GET', urlWithPlaceholder, '', charset, forms);
-          try {
-            window.open(linkUrl, '_blank');
-          } catch (err) {
-            window.location.href = linkUrl;
-          }
-        }, 300);
+        const urlWithPlaceholder = replaceKeywordInLinkUrl(linkUrl);
+        sendCapturedData('GET', urlWithPlaceholder, '', charset, forms);
+        try {
+          window.open(linkUrl, '_blank');
+        } catch (err) {
+          window.location.href = linkUrl;
+        }
 
         return;
       }
@@ -427,58 +482,12 @@
         console.log('[search-capture] No text inputs found in form, proceeding without filling');
       }
 
-      // Build URL from form data with charset encoding
-      const form = searchInfo.form;
-      const action = form.getAttribute('action') || form.action || window.location.href;
-      const method = (form.getAttribute('method') || 'GET').toUpperCase();
-      const actionUrl = new URL(action, window.location.href).href;
-      const charset = resolveFormCharset(form);
+      // Mark that the click handler has processed this form.
+      // The actual submission will be handled by interceptFormSubmits (for standard submit)
+      // or by URL polling (for JS-driven navigation like window.location.href).
+      clickHandlerProcessedForm = true;
 
-      const urlResult = buildSearchUrl(form, method, actionUrl, charset);
-      const fullUrl = urlResult.url;
-      const body = urlResult.body || '';
-      const encodedKeyword = urlResult.encodedKeyword;
-
-      const urlWithPlaceholder = replaceKeywordInUrl(fullUrl, encodedKeyword);
-      const bodyWithPlaceholder = body ? replaceKeywordInBody(body, encodedKeyword) : '';
-      const forms = detectSearchForms();
-
-      console.log('[search-capture] Built URL:', urlWithPlaceholder, 'method:', method, 'encodedKeyword:', encodedKeyword);
-
-      if (method === 'POST') {
-        // POST: fill inputs, send data, let the form submit naturally.
-        // The page will navigate away — no need to restore inputs.
-        clickHandlerProcessedForm = true;  // Tell submit handler to skip
-
-        chrome.runtime.sendMessage({
-          action: 'searchCaptured',
-          method: method,
-          url: urlWithPlaceholder,
-          charset: charset,
-          body: bodyWithPlaceholder,
-          forms: forms,
-        });
-
-      } else {
-        // GET: delay capture to let website JS modify the form.
-        // Some sites update form action/parameters in click handlers.
-        e.preventDefault();
-        // Don't stop propagation so website JS click handlers can run.
-
-        // Schedule fallback: if no other strategy (submit handler/fetch/XHR/URL polling)
-        // captures within 300ms, build URL from the (possibly modified) form state.
-        setTimeout(() => {
-          if (!captureActive) return;
-
-          const fallbackResult = buildSearchUrl(form, method, actionUrl, charset);
-          const fallbackUrl = replaceKeywordInUrl(fallbackResult.url, fallbackResult.encodedKeyword);
-          const fallbackBody = fallbackResult.body ? replaceKeywordInBody(fallbackResult.body, fallbackResult.encodedKeyword) : '';
-          const fallbackForms = detectSearchForms();
-
-          sendCapturedData(method, fallbackUrl, fallbackBody, charset, fallbackForms);
-          submitFormAsGetInNewTab(form, null);
-        }, 300);
-      }
+      console.log('[search-capture] Filled form, letting natural submission proceed');
     };
 
     document.addEventListener('click', handler, true);
@@ -571,31 +580,30 @@
      ═══════════════════════════════════ */
 
   let clickHandlerProcessedForm = false;
+  let lockedSearchButton = null;
 
   function interceptFormSubmits() {
-    let captured = false;
-
     const handler = function (e) {
       if (!captureActive) return;
       const form = e.target;
       if (!form || form.tagName !== 'FORM') return;
-      if (captured) return;
 
-      // If the click handler already processed this form, skip
+      // Determine if we should handle this submission.
+      let shouldProcess = false;
       if (clickHandlerProcessedForm) {
-        clickHandlerProcessedForm = false;  // Reset for next time
-        return;
+        // The click handler filled inputs and let the natural submission proceed.
+        clickHandlerProcessedForm = false;
+        shouldProcess = true;
+      } else {
+        // Check if this form contains one of our filled inputs (e.g. Enter key in input).
+        const hasFilledInput = filledInputs.some(info => form.contains(info.element));
+        if (hasFilledInput) shouldProcess = true;
       }
+      if (!shouldProcess) return;
 
       const action = form.getAttribute('action') || form.action || window.location.href;
       const method = (form.getAttribute('method') || 'GET').toUpperCase();
       const actionUrl = new URL(action, window.location.href).href;
-
-      // Check if this form contains one of our filled inputs
-      const hasFilledInput = filledInputs.some(info => form.contains(info.element));
-      if (!hasFilledInput) return;
-
-      captured = true;
       const charset = resolveFormCharset(form);
 
       const urlResult = buildSearchUrl(form, method, actionUrl, charset);
@@ -608,7 +616,12 @@
       const forms = detectSearchForms();
 
       if (method === 'POST') {
-        // POST: send data and let the form submit naturally
+        // POST: capture data and let the form submit naturally.
+        // The page will navigate away — no need to restore inputs.
+        captureActive = false;
+        restoreOriginals();
+        stopUrlPolling();
+
         chrome.runtime.sendMessage({
           action: 'searchCaptured',
           method: method,
@@ -617,11 +630,15 @@
           body: bodyWithPlaceholder,
           forms: forms,
         });
-        // Don't prevent default — form submits with filled value
+        // Don't prevent default — form submits with filled value.
       } else {
-        // GET: 使用原生表单提交，确保站点声明编码生效。
+        // GET: prevent default navigation, then use form.submit() to open in a new tab.
+        // form.submit() does NOT fire a submit event, so it won't recursively trigger this handler.
         e.preventDefault();
         e.stopImmediatePropagation();
+
+        submitFormAsGetInNewTab(form);
+        restoreFilledInputs();
 
         captureActive = false;
         restoreOriginals();
@@ -635,9 +652,6 @@
           body: bodyWithPlaceholder,
           forms,
         });
-
-        submitFormAsGetInNewTab(form, e.submitter instanceof HTMLElement ? e.submitter : null);
-        restoreFilledInputs();
       }
     };
 
@@ -692,6 +706,8 @@
     }
   }
 
+  let urlPollBeforeUnloadHandler = null;
+
   function startUrlPolling() {
     const originalUrl = window.location.href;
     const charset = detectPageCharset();
@@ -705,13 +721,37 @@
         const method = formInfo ? formInfo.method : 'GET';
         sendCapturedData(method, urlWithPlaceholder, '', charset, forms);
       }
-    }, 200);
+    }, 50);
+
+    // Fallback for very fast JS-driven navigations (e.g. window.location.href)
+    // where setInterval may not fire before the page unloads.
+    urlPollBeforeUnloadHandler = function () {
+      if (!captureActive) return;
+      const currentUrl = window.location.href;
+      const forms = detectSearchForms();
+      const formInfo = forms.find(f => f.hasSearchInput) || forms[0];
+      const method = formInfo ? formInfo.method : 'GET';
+      savePendingCapture({
+        mode: 'await-navigation',
+        method,
+        body: '',
+        charset,
+        forms,
+        originalUrl,
+        url: currentUrl !== originalUrl ? replaceKeywordInCapturedUrl(currentUrl, charset) : '',
+      });
+    };
+    window.addEventListener('beforeunload', urlPollBeforeUnloadHandler);
   }
 
   function stopUrlPolling() {
     if (urlPollInterval) {
       clearInterval(urlPollInterval);
       urlPollInterval = null;
+    }
+    if (urlPollBeforeUnloadHandler) {
+      window.removeEventListener('beforeunload', urlPollBeforeUnloadHandler);
+      urlPollBeforeUnloadHandler = null;
     }
   }
 
@@ -725,6 +765,9 @@
   function startCapture() {
     captureActive = true;
     filledInputs = [];
+    clickHandlerProcessedForm = false;
+    lockedSearchButton = null;
+    clearPendingCapture();
 
     // Listen for user clicking the site's search button
     searchClickHandler = interceptSearchButtonClick();
@@ -739,6 +782,8 @@
     captureActive = false;
     restoreOriginals();
     stopUrlPolling();
+    lockedSearchButton = null;
+    clearPendingCapture();
     if (searchClickHandler) {
       document.removeEventListener('click', searchClickHandler, true);
       searchClickHandler = null;
@@ -776,5 +821,35 @@
     }
     return true;
   });
+
+  /* ═══════════════════════════════════
+     Recover pending capture from sessionStorage
+     (for JS-driven navigations like window.location.href)
+     ═══════════════════════════════════ */
+
+  try {
+    const pending = sessionStorage.getItem(PENDING_CAPTURE_KEY);
+    if (pending) {
+      const data = JSON.parse(pending);
+      // Only recover if captured within the last 10 seconds
+      if (data.timestamp && Date.now() - data.timestamp < 10000) {
+        let recoveredUrl = data.url || '';
+        if (!recoveredUrl && data.mode === 'await-navigation' && data.originalUrl && window.location.href !== data.originalUrl) {
+          recoveredUrl = replaceKeywordInCapturedUrl(window.location.href, data.charset || detectPageCharset());
+        }
+        if (recoveredUrl) {
+          chrome.runtime.sendMessage({
+            action: 'searchCaptured',
+            method: data.method || 'GET',
+            url: recoveredUrl,
+            charset: data.charset || detectPageCharset(),
+            body: data.body || '',
+            forms: data.forms || [],
+          });
+        }
+      }
+      sessionStorage.removeItem(PENDING_CAPTURE_KEY);
+    }
+  } catch (e) {}
 
 })();
