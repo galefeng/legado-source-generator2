@@ -540,6 +540,10 @@ function renderRuleTypeTabs() {
 function updateStepIndicator() {
   const fields = getFields();
   const rule = getRuleState();
+  if (rule.currentStep === fields.length) {
+    document.getElementById('stepText').textContent = `汇总: ${fields.length} 个字段`;
+    return;
+  }
   const field = fields[rule.currentStep];
   const fieldState = rule.fieldStates[field.key] || 'pending';
   const fieldData = rule.fields[field.key] || {};
@@ -568,6 +572,12 @@ function renderFields() {
   const container = document.getElementById('fieldContainer');
   const fields = getFields();
   const rule = getRuleState();
+
+  if (rule.currentStep === fields.length) {
+    renderSummaryView(container);
+    return;
+  }
+
   const field = fields[rule.currentStep];
   const fieldData = rule.fields[field.key] || {};
   const fieldState = rule.fieldStates[field.key] || 'pending';
@@ -653,6 +663,84 @@ function renderFields() {
   `;
 
   bindFieldEvents();
+}
+
+function renderSummaryView(container) {
+  const fields = getFields();
+  const rule = getRuleState();
+
+  const rows = fields.map((f, index) => {
+    const fieldState = rule.fieldStates[f.key] || 'pending';
+    const fieldData = rule.fields[f.key] || {};
+    let stateIcon;
+    if (fieldState === 'selected' && fieldData.state === 'manual') {
+      stateIcon = '◉';
+    } else {
+      stateIcon = {
+        pending: '○',
+        picking: '◐',
+        selected: '●',
+        skipped: '⊘',
+        manual: '◉',
+      }[fieldState];
+    }
+
+    const isLinkField = LINK_FIELDS.includes(f.key);
+    const rawValue = fieldData.value || '';
+    const value = (fieldData.webView && isLinkField && rawValue) ? applyWebView(rawValue) : rawValue;
+
+    return `
+      <div class="summary-row" data-step-index="${index}">
+        <div class="summary-field-info">
+          <span class="summary-state-icon">${stateIcon}</span>
+          <span class="summary-field-name" data-step-index="${index}">${f.label}${f.required ? ' <span class="required">*</span>' : ''}</span>
+        </div>
+        <textarea class="input summary-field-value" rows="1" data-field-key="${f.key}" placeholder="未配置">${escapeHtml(value)}</textarea>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="field-item summary-view">
+      <label>规则汇总</label>
+      <div class="summary-list">
+        ${rows}
+      </div>
+    </div>
+  `;
+
+  // Bind field name click to jump
+  container.querySelectorAll('.summary-field-name').forEach(el => {
+    el.addEventListener('click', () => {
+      const stepIndex = parseInt(el.dataset.stepIndex, 10);
+      if (!Number.isNaN(stepIndex)) {
+        goToStep(stepIndex);
+      }
+    });
+  });
+
+  // Bind textarea input to save
+  container.querySelectorAll('.summary-field-value').forEach(el => {
+    autoResizeTextarea(el);
+    el.addEventListener('input', (e) => {
+      const key = e.target.dataset.fieldKey;
+      if (!key) return;
+      let value = e.target.value;
+      const fieldData = rule.fields[key] || {};
+      // Strip webView suffix if applicable before saving
+      if (fieldData.webView && LINK_FIELDS.includes(key)) {
+        value = stripWebView(value);
+      }
+      if (!rule.fields[key]) {
+        rule.fields[key] = { value: '', state: 'manual', rawSelector: '' };
+      }
+      rule.fields[key].value = value;
+      rule.fields[key].state = 'manual';
+      rule.fieldStates[key] = 'manual';
+      saveState();
+      renderFieldStatusSummary();
+    });
+  });
 }
 
 function bindFieldEvents() {
@@ -1109,7 +1197,7 @@ function updateNavButtons() {
   const rule = getRuleState();
   document.getElementById('prevBtn').disabled = rule.currentStep === 0;
   document.getElementById('nextBtn').textContent =
-    rule.currentStep === fields.length - 1 ? '完成' : '下一步';
+    rule.currentStep === fields.length ? '完成' : '下一步';
 }
 
 function renderFieldStatusSummary() {
@@ -1138,7 +1226,10 @@ function renderFieldStatusSummary() {
     return `<span class="status-item${activeClass}" data-field="${f.key}" data-step-index="${index}">${stateIcon} ${f.label}</span>`;
   }).join(' | ');
 
-  summaryContainer.innerHTML = summary;
+  const summaryActiveClass = rule.currentStep === fields.length ? ' active' : '';
+  const summaryHtml = `<span class="status-item${summaryActiveClass}" data-step-index="${fields.length}">☰ 汇总</span>`;
+
+  summaryContainer.innerHTML = summary + ' | ' + summaryHtml;
 
   summaryContainer.querySelectorAll('.status-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -1384,6 +1475,12 @@ function autoResizeTextarea(el) {
 function handleNext() {
   const fields = getFields();
   const rule = getRuleState();
+
+  if (rule.currentStep === fields.length) {
+    handleExport();
+    return;
+  }
+
   const field = fields[rule.currentStep];
   const fieldState = rule.fieldStates[field.key];
 
@@ -1402,7 +1499,7 @@ function handleNext() {
   }
 
   if (rule.currentStep === fields.length - 1) {
-    handleExport();
+    goToNextStep();
   } else {
     goToNextStep();
   }
