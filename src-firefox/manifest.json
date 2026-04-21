@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Legado Source Generator",
-  "version": "0.9.1",
+  "version": "1.0.0",
   "description": "Generate Legado book source rules from web pages",
   "permissions": [
     "activeTab",
