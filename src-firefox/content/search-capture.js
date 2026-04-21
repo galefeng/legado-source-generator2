@@ -251,12 +251,14 @@
       const method = (form.getAttribute('method') || 'GET').toUpperCase();
       const acceptCharset = form.getAttribute('accept-charset') || '';
       const inputs = form.querySelectorAll('input[type="text"], input[type="search"]');
-      if (!inputs.length && !action) return;
+      const selects = form.querySelectorAll('select[name]');
+      if (!inputs.length && !selects.length && !action) return;
       results.push({
         action,
         method,
         charset: acceptCharset || detectPageCharset(),
         hasSearchInput: inputs.length > 0,
+        hasSelect: selects.length > 0,
       });
     });
     return results;
@@ -276,6 +278,35 @@
       const encodedKey = encodeURIComponent(key);  // keys are always UTF-8 safe
       const encodedValue = value === PRESET_KEYWORD ? '{{key}}' : encodeTemplateValue(value);
       params.push(encodedKey + '=' + encodedValue);
+    });
+
+    // Defensive: also explicitly collect <select> and <input type="hidden">
+    // inside the form. Some sites may have fields that FormData misses.
+    form.querySelectorAll('select[name], input[type="hidden"][name]').forEach(el => {
+      const key = el.name;
+      const value = el.value;
+      if (value === undefined || value === null) return;
+      const encodedKey = encodeURIComponent(key);
+      const encodedValue = value === PRESET_KEYWORD ? '{{key}}' : encodeTemplateValue(value);
+      const param = encodedKey + '=' + encodedValue;
+      if (!params.some(p => p.startsWith(encodedKey + '='))) {
+        params.push(param);
+      }
+    });
+
+    // Also collect <select> elements outside the form but on the page.
+    // Some sites place selects outside the form and read them via JS.
+    document.querySelectorAll('select[name]').forEach(select => {
+      if (form.contains(select)) return;
+      const key = select.name;
+      const value = select.value;
+      if (!value) return;
+      const encodedKey = encodeURIComponent(key);
+      const encodedValue = value === PRESET_KEYWORD ? '{{key}}' : encodeTemplateValue(value);
+      const param = encodedKey + '=' + encodedValue;
+      if (!params.some(p => p.startsWith(encodedKey + '='))) {
+        params.push(param);
+      }
     });
 
     const queryString = params.join('&');
@@ -364,22 +395,28 @@
       });
 
       if (searchInfo.isLink) {
-        // It's a link — use it directly
-        // Try to replace any search keyword in the link URL with {{key}}
+        // It's a link — let website JS handle it first, fallback after a delay
+        e.preventDefault();
+        // Don't stop propagation so website JS click handlers can run
+
         const linkUrl = searchInfo.linkUrl;
-        const urlWithPlaceholder = replaceKeywordInLinkUrl(linkUrl);
         const charset = detectPageCharset();
         const forms = detectSearchForms();
 
-        try {
-          window.open(linkUrl, '_blank');
-        } catch (err) {
-          sendCapturedData('GET', urlWithPlaceholder, '', charset, forms);
-          window.location.href = linkUrl;
-          return;
-        }
+        // Schedule fallback: if no other strategy (fetch/XHR/URL polling)
+        // captures within 300ms, use the link URL directly.
+        setTimeout(() => {
+          if (!captureActive) return;
 
-        sendCapturedData('GET', urlWithPlaceholder, '', charset, forms);
+          const urlWithPlaceholder = replaceKeywordInLinkUrl(linkUrl);
+          sendCapturedData('GET', urlWithPlaceholder, '', charset, forms);
+          try {
+            window.open(linkUrl, '_blank');
+          } catch (err) {
+            window.location.href = linkUrl;
+          }
+        }, 300);
+
         return;
       }
 
@@ -423,26 +460,24 @@
         });
 
       } else {
-        // GET: 使用浏览器原生提交，确保按站点要求编码（如 GBK/Big5）。
+        // GET: delay capture to let website JS modify the form.
+        // Some sites update form action/parameters in click handlers.
         e.preventDefault();
-        e.stopImmediatePropagation();
+        // Don't stop propagation so website JS click handlers can run.
 
-        clickHandlerProcessedForm = true;
-        captureActive = false;
-        restoreOriginals();
-        stopUrlPolling();
+        // Schedule fallback: if no other strategy (submit handler/fetch/XHR/URL polling)
+        // captures within 300ms, build URL from the (possibly modified) form state.
+        setTimeout(() => {
+          if (!captureActive) return;
 
-        chrome.runtime.sendMessage({
-          action: 'searchCaptured',
-          method,
-          url: urlWithPlaceholder,
-          charset,
-          body: bodyWithPlaceholder,
-          forms,
-        });
+          const fallbackResult = buildSearchUrl(form, method, actionUrl, charset);
+          const fallbackUrl = replaceKeywordInUrl(fallbackResult.url, fallbackResult.encodedKeyword);
+          const fallbackBody = fallbackResult.body ? replaceKeywordInBody(fallbackResult.body, fallbackResult.encodedKeyword) : '';
+          const fallbackForms = detectSearchForms();
 
-        submitFormAsGetInNewTab(form, searchButton instanceof HTMLElement ? searchButton : null);
-        restoreFilledInputs();
+          sendCapturedData(method, fallbackUrl, fallbackBody, charset, fallbackForms);
+          submitFormAsGetInNewTab(form, null);
+        }, 300);
       }
     };
 
