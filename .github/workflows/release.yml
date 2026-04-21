@@ -83,3 +83,81 @@ jobs:
           files: |
             dist/legado-source-generator-chrome-v${{ env.VERSION }}.zip
             dist/legado-source-generator-firefox-v${{ env.VERSION }}.zip
+
+  sync-gitee-release:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sync Release to Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_ACCESS_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          TAG_NAME="v${VERSION}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+          OWNER="${GITHUB_REPOSITORY%%/*}"
+
+          # 1. 确保 Gitee 上存在对应 tag
+          TAG_EXISTS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://gitee.com/api/v5/repos/${OWNER}/${REPO}/git/refs/tags/${TAG_NAME}?access_token=${GITEE_TOKEN}")
+
+          if [ "$TAG_EXISTS" != "200" ]; then
+            # 获取当前 tag 的 commit sha
+            COMMIT_SHA=$(git rev-list -n1 "${TAG_NAME}")
+            # 在 Gitee 创建 tag
+            curl -s -X POST \
+              "https://gitee.com/api/v5/repos/${OWNER}/${REPO}/git/tags" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"access_token\": \"${GITEE_TOKEN}\",
+                \"tag_name\": \"${TAG_NAME}\",
+                \"message\": \"Release ${TAG_NAME}\",
+                \"object\": \"${COMMIT_SHA}\",
+                \"type\": \"commit\"
+              }" > /dev/null
+
+            # 创建 ref
+            curl -s -X POST \
+              "https://gitee.com/api/v5/repos/${OWNER}/${REPO}/git/refs" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"access_token\": \"${GITEE_TOKEN}\",
+                \"ref\": \"refs/tags/${TAG_NAME}\",
+                \"sha\": \"${COMMIT_SHA}\"
+              }" > /dev/null
+          fi
+
+          # 2. 检查 Gitee Release 是否已存在
+          RELEASE_EXISTS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://gitee.com/api/v5/repos/${OWNER}/${REPO}/releases/tags/${TAG_NAME}?access_token=${GITEE_TOKEN}")
+
+          if [ "$RELEASE_EXISTS" == "200" ]; then
+            echo "Gitee release ${TAG_NAME} already exists, skipping."
+            exit 0
+          fi
+
+          # 3. 获取 GitHub Release 信息
+          GITHUB_RELEASE=$(curl -s \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG_NAME}")
+
+          RELEASE_NAME=$(echo "$GITHUB_RELEASE" | jq -r '.name // "'"$TAG_NAME"'"')
+          RELEASE_BODY=$(echo "$GITHUB_RELEASE" | jq -r '.body // ""')
+          IS_PRERELEASE=$(echo "$GITHUB_RELEASE" | jq -r '.prerelease // false')
+
+          # 4. 创建 Gitee Release
+          curl -s -X POST \
+            "https://gitee.com/api/v5/repos/${OWNER}/${REPO}/releases" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"access_token\": \"${GITEE_TOKEN}\",
+              \"tag_name\": \"${TAG_NAME}\",
+              \"name\": \"${RELEASE_NAME}\",
+              \"body\": $(echo "$RELEASE_BODY" | jq -sR .),
+              \"prerelease\": ${IS_PRERELEASE}
+            }"
+
+          echo "Gitee release ${TAG_NAME} created successfully."
