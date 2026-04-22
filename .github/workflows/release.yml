@@ -90,56 +90,84 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Sync Release to Gitee
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_ACCESS_TOKEN }}
         run: |
+          set -euo pipefail
+
           VERSION="${GITHUB_REF_NAME#v}"
           TAG_NAME="v${VERSION}"
           REPO="${GITHUB_REPOSITORY#*/}"
           OWNER="${GITHUB_REPOSITORY%%/*}"
+          GITEE_API="https://gitee.com/api/v5/repos/${OWNER}/${REPO}"
+          COMMIT_SHA=$(git rev-list -n1 "${TAG_NAME}")
 
-          # 1. 确保 Gitee 上存在对应 tag
-          TAG_EXISTS=$(curl -s -o /dev/null -w "%{http_code}" \
-            "https://gitee.com/api/v5/repos/${OWNER}/${REPO}/git/refs/tags/${TAG_NAME}?access_token=${GITEE_TOKEN}")
+          # 1. 确保 Gitee 上存在对应 tag ref
+          TAG_REF_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${GITEE_API}/git/refs/tags/${TAG_NAME}?access_token=${GITEE_TOKEN}")
 
-          if [ "$TAG_EXISTS" != "200" ]; then
-            # 获取当前 tag 的 commit sha
-            COMMIT_SHA=$(git rev-list -n1 "${TAG_NAME}")
-            # 在 Gitee 创建 tag
-            curl -s -X POST \
-              "https://gitee.com/api/v5/repos/${OWNER}/${REPO}/git/tags" \
-              -H "Content-Type: application/json" \
-              -d "{
-                \"access_token\": \"${GITEE_TOKEN}\",
-                \"tag_name\": \"${TAG_NAME}\",
-                \"message\": \"Release ${TAG_NAME}\",
-                \"object\": \"${COMMIT_SHA}\",
-                \"type\": \"commit\"
-              }" > /dev/null
-
-            # 创建 ref
-            curl -s -X POST \
-              "https://gitee.com/api/v5/repos/${OWNER}/${REPO}/git/refs" \
+          if [ "$TAG_REF_STATUS" != "200" ]; then
+            echo "Gitee tag ref ${TAG_NAME} not found, creating it from ${COMMIT_SHA}."
+            CREATE_REF_RESPONSE=$(mktemp)
+            CREATE_REF_STATUS=$(curl -s -o "$CREATE_REF_RESPONSE" -w "%{http_code}" -X POST \
+              "${GITEE_API}/git/refs" \
               -H "Content-Type: application/json" \
               -d "{
                 \"access_token\": \"${GITEE_TOKEN}\",
                 \"ref\": \"refs/tags/${TAG_NAME}\",
                 \"sha\": \"${COMMIT_SHA}\"
-              }" > /dev/null
+              }")
+
+            if [ "$CREATE_REF_STATUS" != "201" ] && [ "$CREATE_REF_STATUS" != "422" ]; then
+              echo "Failed to create Gitee tag ref ${TAG_NAME} (HTTP ${CREATE_REF_STATUS})."
+              cat "$CREATE_REF_RESPONSE"
+              exit 1
+            fi
+
+            if [ "$CREATE_REF_STATUS" = "422" ]; then
+              echo "Gitee reported tag ref ${TAG_NAME} already exists during creation."
+              cat "$CREATE_REF_RESPONSE"
+            fi
           fi
 
-          # 2. 检查 Gitee Release 是否已存在
+          # 2. 轮询确认 Gitee 已经能识别该 tag，再继续创建 release
+          TAG_READY=0
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            TAG_REF_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "${GITEE_API}/git/refs/tags/${TAG_NAME}?access_token=${GITEE_TOKEN}")
+            RELEASE_TAG_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "${GITEE_API}/releases/tags/${TAG_NAME}?access_token=${GITEE_TOKEN}")
+
+            if [ "$TAG_REF_STATUS" = "200" ] || [ "$RELEASE_TAG_STATUS" = "200" ]; then
+              TAG_READY=1
+              echo "Gitee tag ${TAG_NAME} is ready on attempt ${attempt}."
+              break
+            fi
+
+            echo "Waiting for Gitee to recognize tag ${TAG_NAME} (attempt ${attempt}/10, ref=${TAG_REF_STATUS}, release=${RELEASE_TAG_STATUS})."
+            sleep 6
+          done
+
+          if [ "$TAG_READY" != "1" ]; then
+            echo "Timed out waiting for Gitee to recognize tag ${TAG_NAME}."
+            exit 1
+          fi
+
+          # 3. 检查 Gitee Release 是否已存在
           RELEASE_EXISTS=$(curl -s -o /dev/null -w "%{http_code}" \
-            "https://gitee.com/api/v5/repos/${OWNER}/${REPO}/releases/tags/${TAG_NAME}?access_token=${GITEE_TOKEN}")
+            "${GITEE_API}/releases/tags/${TAG_NAME}?access_token=${GITEE_TOKEN}")
 
           if [ "$RELEASE_EXISTS" == "200" ]; then
             echo "Gitee release ${TAG_NAME} already exists, skipping."
             exit 0
           fi
 
-          # 3. 获取 GitHub Release 信息
+          # 4. 获取 GitHub Release 信息
           GITHUB_RELEASE=$(curl -s \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG_NAME}")
@@ -148,9 +176,10 @@ jobs:
           RELEASE_BODY=$(echo "$GITHUB_RELEASE" | jq -r '.body // ""')
           IS_PRERELEASE=$(echo "$GITHUB_RELEASE" | jq -r '.prerelease // false')
 
-          # 4. 创建 Gitee Release
-          curl -s -X POST \
-            "https://gitee.com/api/v5/repos/${OWNER}/${REPO}/releases" \
+          # 5. 创建 Gitee Release
+          CREATE_RELEASE_RESPONSE=$(mktemp)
+          CREATE_RELEASE_STATUS=$(curl -s -o "$CREATE_RELEASE_RESPONSE" -w "%{http_code}" -X POST \
+            "${GITEE_API}/releases" \
             -H "Content-Type: application/json" \
             -d "{
               \"access_token\": \"${GITEE_TOKEN}\",
@@ -158,6 +187,12 @@ jobs:
               \"name\": \"${RELEASE_NAME}\",
               \"body\": $(echo "$RELEASE_BODY" | jq -sR .),
               \"prerelease\": ${IS_PRERELEASE}
-            }"
+            }")
+
+          if [ "$CREATE_RELEASE_STATUS" != "201" ]; then
+            echo "Failed to create Gitee release ${TAG_NAME} (HTTP ${CREATE_RELEASE_STATUS})."
+            cat "$CREATE_RELEASE_RESPONSE"
+            exit 1
+          fi
 
           echo "Gitee release ${TAG_NAME} created successfully."
