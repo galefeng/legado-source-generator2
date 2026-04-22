@@ -99,6 +99,7 @@ jobs:
           GITEE_TOKEN: ${{ secrets.GITEE_ACCESS_TOKEN }}
           GITEE_OWNER: ${{ vars.GITEE_OWNER }}
           GITEE_REPO: ${{ vars.GITEE_REPO }}
+          GITEE_USERNAME: ${{ vars.GITEE_USERNAME }}
         run: |
           set -euo pipefail
 
@@ -106,8 +107,10 @@ jobs:
           TAG_NAME="v${VERSION}"
           OWNER="${GITEE_OWNER:-${GITHUB_REPOSITORY%%/*}}"
           REPO="${GITEE_REPO:-${GITHUB_REPOSITORY#*/}}"
+          USERNAME="${GITEE_USERNAME:-${OWNER}}"
           GITEE_API="https://gitee.com/api/v5/repos/${OWNER}/${REPO}"
           COMMIT_SHA=$(git rev-list -n1 "${TAG_NAME}")
+          GITEE_GIT_URL="https://${USERNAME}:${GITEE_TOKEN}@gitee.com/${OWNER}/${REPO}.git"
 
           echo "Using Gitee repository: ${OWNER}/${REPO}"
 
@@ -121,49 +124,29 @@ jobs:
             exit 1
           fi
 
-          # 1. 确保 Gitee 上存在对应 tag ref
-          TAG_REF_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            "${GITEE_API}/git/refs/tags/${TAG_NAME}?access_token=${GITEE_TOKEN}")
-
-          if [ "$TAG_REF_STATUS" != "200" ]; then
-            echo "Gitee tag ref ${TAG_NAME} not found, creating it from ${COMMIT_SHA}."
-            CREATE_REF_RESPONSE=$(mktemp)
-            CREATE_REF_STATUS=$(curl -s -o "$CREATE_REF_RESPONSE" -w "%{http_code}" -X POST \
-              "${GITEE_API}/git/refs" \
-              -H "Content-Type: application/json" \
-              -d "{
-                \"access_token\": \"${GITEE_TOKEN}\",
-                \"ref\": \"refs/tags/${TAG_NAME}\",
-                \"sha\": \"${COMMIT_SHA}\"
-              }")
-
-            if [ "$CREATE_REF_STATUS" != "201" ] && [ "$CREATE_REF_STATUS" != "422" ]; then
-              echo "Failed to create Gitee tag ref ${TAG_NAME} (HTTP ${CREATE_REF_STATUS})."
-              cat "$CREATE_REF_RESPONSE"
-              exit 1
-            fi
-
-            if [ "$CREATE_REF_STATUS" = "422" ]; then
-              echo "Gitee reported tag ref ${TAG_NAME} already exists during creation."
-              cat "$CREATE_REF_RESPONSE"
-            fi
+          # 1. 通过 Git 将 tag 推送到 Gitee，而不是调用不存在的 git/refs API
+          GITEE_TAG_SHA=$(git ls-remote --tags "${GITEE_GIT_URL}" "refs/tags/${TAG_NAME}" | awk '{print $1}')
+          if [ "${GITEE_TAG_SHA}" = "${COMMIT_SHA}" ]; then
+            echo "Gitee tag ${TAG_NAME} already points to ${COMMIT_SHA}."
+          else
+            echo "Pushing tag ${TAG_NAME} to Gitee (${GITEE_TAG_SHA:-missing} -> ${COMMIT_SHA})."
+            git push --force "${GITEE_GIT_URL}" "refs/tags/${TAG_NAME}:refs/tags/${TAG_NAME}"
           fi
 
-          # 2. 轮询确认 Gitee 已经能识别该 tag，再继续创建 release
+          # 2. 轮询确认 Gitee 已经识别该 tag，再继续创建 release
           TAG_READY=0
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            TAG_REF_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              "${GITEE_API}/git/refs/tags/${TAG_NAME}?access_token=${GITEE_TOKEN}")
+            GITEE_TAG_SHA=$(git ls-remote --tags "${GITEE_GIT_URL}" "refs/tags/${TAG_NAME}" | awk '{print $1}')
             RELEASE_TAG_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
               "${GITEE_API}/releases/tags/${TAG_NAME}?access_token=${GITEE_TOKEN}")
 
-            if [ "$TAG_REF_STATUS" = "200" ] || [ "$RELEASE_TAG_STATUS" = "200" ]; then
+            if [ "${GITEE_TAG_SHA}" = "${COMMIT_SHA}" ] || [ "$RELEASE_TAG_STATUS" = "200" ]; then
               TAG_READY=1
               echo "Gitee tag ${TAG_NAME} is ready on attempt ${attempt}."
               break
             fi
 
-            echo "Waiting for Gitee to recognize tag ${TAG_NAME} (attempt ${attempt}/10, ref=${TAG_REF_STATUS}, release=${RELEASE_TAG_STATUS})."
+            echo "Waiting for Gitee to recognize tag ${TAG_NAME} (attempt ${attempt}/10, sha=${GITEE_TAG_SHA:-missing}, release=${RELEASE_TAG_STATUS})."
             sleep 6
           done
 
