@@ -97,15 +97,29 @@ jobs:
       - name: Sync Release to Gitee
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_ACCESS_TOKEN }}
+          GITEE_OWNER: ${{ vars.GITEE_OWNER }}
+          GITEE_REPO: ${{ vars.GITEE_REPO }}
         run: |
           set -euo pipefail
 
           VERSION="${GITHUB_REF_NAME#v}"
           TAG_NAME="v${VERSION}"
-          REPO="${GITHUB_REPOSITORY#*/}"
-          OWNER="${GITHUB_REPOSITORY%%/*}"
+          OWNER="${GITEE_OWNER:-${GITHUB_REPOSITORY%%/*}}"
+          REPO="${GITEE_REPO:-${GITHUB_REPOSITORY#*/}}"
           GITEE_API="https://gitee.com/api/v5/repos/${OWNER}/${REPO}"
           COMMIT_SHA=$(git rev-list -n1 "${TAG_NAME}")
+
+          echo "Using Gitee repository: ${OWNER}/${REPO}"
+
+          REPO_CHECK_RESPONSE=$(mktemp)
+          REPO_CHECK_STATUS=$(curl -s -o "$REPO_CHECK_RESPONSE" -w "%{http_code}" \
+            "${GITEE_API}?access_token=${GITEE_TOKEN}")
+
+          if [ "$REPO_CHECK_STATUS" != "200" ]; then
+            echo "Failed to access Gitee repository ${OWNER}/${REPO} (HTTP ${REPO_CHECK_STATUS})."
+            cat "$REPO_CHECK_RESPONSE"
+            exit 1
+          fi
 
           # 1. 确保 Gitee 上存在对应 tag ref
           TAG_REF_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
