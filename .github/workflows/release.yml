@@ -137,16 +137,14 @@ jobs:
           TAG_READY=0
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
             GITEE_TAG_SHA=$(git ls-remote --tags "${GITEE_GIT_URL}" "refs/tags/${TAG_NAME}" | awk '{print $1}')
-            RELEASE_TAG_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              "${GITEE_API}/releases/tags/${TAG_NAME}?access_token=${GITEE_TOKEN}")
 
-            if [ "${GITEE_TAG_SHA}" = "${COMMIT_SHA}" ] || [ "$RELEASE_TAG_STATUS" = "200" ]; then
+            if [ "${GITEE_TAG_SHA}" = "${COMMIT_SHA}" ]; then
               TAG_READY=1
               echo "Gitee tag ${TAG_NAME} is ready on attempt ${attempt}."
               break
             fi
 
-            echo "Waiting for Gitee to recognize tag ${TAG_NAME} (attempt ${attempt}/10, sha=${GITEE_TAG_SHA:-missing}, release=${RELEASE_TAG_STATUS})."
+            echo "Waiting for Gitee to recognize tag ${TAG_NAME} (attempt ${attempt}/10, sha=${GITEE_TAG_SHA:-missing})."
             sleep 6
           done
 
@@ -155,16 +153,7 @@ jobs:
             exit 1
           fi
 
-          # 3. 检查 Gitee Release 是否已存在
-          RELEASE_EXISTS=$(curl -s -o /dev/null -w "%{http_code}" \
-            "${GITEE_API}/releases/tags/${TAG_NAME}?access_token=${GITEE_TOKEN}")
-
-          if [ "$RELEASE_EXISTS" == "200" ]; then
-            echo "Gitee release ${TAG_NAME} already exists, skipping."
-            exit 0
-          fi
-
-          # 4. 获取 GitHub Release 信息
+          # 3. 获取 GitHub Release 信息
           GITHUB_RELEASE=$(curl -s \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG_NAME}")
@@ -173,7 +162,7 @@ jobs:
           RELEASE_BODY=$(echo "$GITHUB_RELEASE" | jq -r '.body // ""')
           IS_PRERELEASE=$(echo "$GITHUB_RELEASE" | jq -r '.prerelease // false')
 
-          # 5. 创建 Gitee Release
+          # 4. 创建 Gitee Release
           CREATE_RELEASE_RESPONSE=$(mktemp)
           CREATE_RELEASE_STATUS=$(curl -s -o "$CREATE_RELEASE_RESPONSE" -w "%{http_code}" -X POST \
             "${GITEE_API}/releases" \
