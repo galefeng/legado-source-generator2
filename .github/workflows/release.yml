@@ -170,6 +170,7 @@ jobs:
             -d "{
               \"access_token\": \"${GITEE_TOKEN}\",
               \"tag_name\": \"${TAG_NAME}\",
+              \"target_commitish\": \"${COMMIT_SHA}\",
               \"name\": \"${RELEASE_NAME}\",
               \"body\": $(echo "$RELEASE_BODY" | jq -sR .),
               \"prerelease\": ${IS_PRERELEASE}
