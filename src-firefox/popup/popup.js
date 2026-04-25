@@ -683,6 +683,7 @@ function handleSelectElement() {
   saveState();
   updateStepIndicator();
   renderFields();
+  renderFieldStatusSummary();
 
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     if (!tabs[0]) return;
@@ -756,6 +757,7 @@ function handleCancelSelection() {
   saveState();
   updateStepIndicator();
   renderFields();
+  renderFieldStatusSummary();
 
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     if (tabs[0]) {
@@ -1082,12 +1084,13 @@ function handleFieldInput(e) {
 function goToNextStep() {
   const fields = getFields();
   const rule = getRuleState();
-  if (rule.currentStep < fields.length - 1) {
+  if (rule.currentStep < fields.length) {
     rule.currentStep++;
     saveState();
     updateStepIndicator();
     renderFields();
     updateNavButtons();
+    renderFieldStatusSummary();
   }
 }
 
@@ -1099,6 +1102,7 @@ function goToPrevStep() {
     updateStepIndicator();
     renderFields();
     updateNavButtons();
+    renderFieldStatusSummary();
   }
 }
 
@@ -1381,11 +1385,7 @@ function handleNext() {
     }
   }
 
-  if (rule.currentStep === fields.length - 1) {
-    goToNextStep();
-  } else {
-    goToNextStep();
-  }
+  goToNextStep();
 }
 
 function handleExport() {
