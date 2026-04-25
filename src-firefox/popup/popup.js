@@ -208,6 +208,23 @@ function loadState() {
           ].filter(item => item.value);
       state.headerItems = migrated;
       document.getElementById('enableCfShield').checked = !!state.enableCfShield;
+
+      // Migrate old data: auto-detect JS mode from existing <js> rules
+      Object.keys(state.rules || {}).forEach((ruleType) => {
+        const rule = state.rules[ruleType];
+        Object.keys(rule.fields || {}).forEach((fieldKey) => {
+          const fieldData = rule.fields[fieldKey];
+          if (fieldData && fieldData.value && fieldData.value.startsWith('<js>')) {
+            if (fieldData.useJsIndex === undefined) {
+              fieldData.useJsIndex = true;
+            }
+          }
+          if (fieldData && fieldData.useJsIndex === undefined) {
+            fieldData.useJsIndex = false;
+          }
+        });
+      });
+
       setTimeout(() => {
         autoResizeTextarea(document.getElementById('bookSourceName'));
         autoResizeTextarea(document.getElementById('bookSourceUrl'));
@@ -308,6 +325,44 @@ ${body}
 })(result)</js>`;
 }
 
+/**
+ * Build native Legado index selector (non-JS mode).
+ * UI inputs are 1-based; native syntax is 0-based.
+ */
+function buildNativeIndexRule(baseSelector, fieldKey, fieldData, isListField) {
+  if (isListField) {
+    const start = fieldData.listIndex?.start ? parseInt(fieldData.listIndex.start, 10) : 0;
+    const end = fieldData.listIndex?.end ? parseInt(fieldData.listIndex.end, 10) : 0;
+
+    if (isNaN(start) || isNaN(end)) return baseSelector;
+
+    // Default: no filter (start=1 or empty, end=-1/0 or empty)
+    if ((!start || start <= 1) && (!end || end === 0 || end === -1)) {
+      return baseSelector;
+    }
+
+    const nativeStart = (start > 1) ? start - 1 : '';
+    const nativeEnd = (end > 0) ? end - 1 : (end < 0 ? end : '');
+
+    if (nativeStart === '' && nativeEnd === '') return baseSelector;
+    if (nativeStart === '' && nativeEnd !== '') return `${baseSelector}[:${nativeEnd}]`;
+    if (nativeStart !== '' && nativeEnd === '') return `${baseSelector}[${nativeStart}:]`;
+    return `${baseSelector}[${nativeStart}:${nativeEnd}]`;
+  }
+
+  // Non-list field: single index
+  const singleVal = fieldData.listIndex?.single ? parseInt(fieldData.listIndex.single, 10) : 0;
+  const tagName = fieldData.tagName || '';
+
+  if (!singleVal || isNaN(singleVal) || singleVal === 0) {
+    return buildAtSelector(baseSelector, fieldKey, tagName);
+  }
+
+  const index = singleVal > 0 ? singleVal - 1 : singleVal;
+  const atPart = buildAtSelector('', fieldKey, tagName);
+  return `${baseSelector}.${index}${atPart}`;
+}
+
 function renderRuleTypeTabs() {
   const container = document.getElementById('ruleTypeTabs');
   if (!container) return;
@@ -385,20 +440,43 @@ function renderFields() {
     ? filterPreviewsByIndex(fieldData.previews, fieldIndex, isListField)
     : fieldData.previews;
 
+  const useJsIndex = fieldData.useJsIndex || false;
+  const indexModeLabel = useJsIndex ? '当前：JS 脚本模式' : '当前：原生索引语法';
+
   const indexHTML = isListField
     ? `<div class="index-row">
-        <label>索引范围</label>
+        <div class="index-mode-row">
+          <label class="index-mode-label" title="原生模式生成更简洁的规则；JS模式支持更复杂的自定义逻辑">
+            <input type="checkbox" id="useJsIndex" ${useJsIndex ? 'checked' : ''}>
+            JS 脚本模式
+          </label>
+          <span class="index-mode-hint">${indexModeLabel}</span>
+        </div>
+        <div class="index-label-row">
+          <label>索引范围</label>
+          <button id="indexTutorialBtn" class="btn btn-secondary">教程</button>
+        </div>
         <div class="index-inputs">
-          <input type="text" id="indexStart" class="input input--center input--50" value="${escapeHtml(fieldIndex.start || '')}" placeholder="0">
+          <input type="text" id="indexStart" class="input input--center input--50" value="${escapeHtml(fieldIndex.start || '')}" placeholder="1">
           <span class="index-sep">至</span>
           <input type="text" id="indexEnd" class="input input--center input--50" value="${escapeHtml(fieldIndex.end || '')}" placeholder="-1">
           <button id="indexApplyBtn" class="btn btn-action btn-index-apply">确认</button>
         </div>
       </div>`
     : `<div class="index-row index-row-single">
-        <label>索引</label>
+        <div class="index-mode-row">
+          <label class="index-mode-label" title="原生模式生成更简洁的规则；JS模式支持更复杂的自定义逻辑">
+            <input type="checkbox" id="useJsIndex" ${useJsIndex ? 'checked' : ''}>
+            JS 脚本模式
+          </label>
+          <span class="index-mode-hint">${indexModeLabel}</span>
+        </div>
+        <div class="index-label-row">
+          <label>索引</label>
+          <button id="indexTutorialBtn" class="btn btn-secondary">教程</button>
+        </div>
         <div class="index-inputs-single">
-          <input type="text" id="indexSingle" class="input input--center input--50" value="${escapeHtml(fieldIndex.single || '')}" placeholder="0">
+          <input type="text" id="indexSingle" class="input input--center input--50" value="${escapeHtml(fieldIndex.single || '')}" placeholder="1">
           <button id="indexApplyBtn" class="btn btn-action btn-index-apply">确认</button>
         </div>
       </div>`;
@@ -559,6 +637,14 @@ function bindFieldEvents() {
   if (indexSingle) indexSingle.addEventListener('input', handleIndexInput);
   const indexApplyBtn = document.getElementById('indexApplyBtn');
   if (indexApplyBtn) indexApplyBtn.addEventListener('click', handleIndexApply);
+  const useJsIndexCb = document.getElementById('useJsIndex');
+  if (useJsIndexCb) useJsIndexCb.addEventListener('change', handleUseJsIndexChange);
+  const indexTutorialBtn = document.getElementById('indexTutorialBtn');
+  if (indexTutorialBtn) {
+    indexTutorialBtn.addEventListener('click', () => {
+      document.getElementById('indexTutorialModal')?.classList.remove('hidden');
+    });
+  }
   const clearBtn = document.getElementById('clearBtn');
   if (clearBtn) clearBtn.addEventListener('click', handleClearField);
   const webViewBtn = document.getElementById('webViewBtn');
@@ -832,6 +918,31 @@ function handleIndexInput(e) {
   saveState();
 }
 
+function handleUseJsIndexChange(e) {
+  const fields = getFields();
+  const rule = getRuleState();
+  const field = fields[rule.currentStep];
+  const fieldData = rule.fields[field.key];
+
+  if (!fieldData) return;
+  fieldData.useJsIndex = e.target.checked;
+
+  // Auto-regenerate rule if rawSelector exists
+  if (fieldData.rawSelector) {
+    const isListField = ['bookList', 'chapterList'].includes(field.key);
+    if (fieldData.useJsIndex) {
+      // Trigger JS generation by re-running handleIndexApply logic
+      handleIndexApply();
+      return;
+    } else {
+      fieldData.value = buildNativeIndexRule(fieldData.rawSelector, field.key, fieldData, isListField);
+    }
+  }
+
+  saveState();
+  renderFields();
+}
+
 function handleIndexApply() {
   const fields = getFields();
   const rule = getRuleState();
@@ -845,26 +956,28 @@ function handleIndexApply() {
 
   const baseSelector = fieldData.rawSelector;
 
-  if (isListField) {
-    const { start, end } = fieldData.listIndex;
-    const startVal = start ? parseInt(start, 10) : 0;
-    const endVal = end ? parseInt(end, 10) : 0;
+  if (fieldData.useJsIndex) {
+    // JS script mode: keep existing logic
+    if (isListField) {
+      const { start, end } = fieldData.listIndex;
+      const startVal = start ? parseInt(start, 10) : 0;
+      const endVal = end ? parseInt(end, 10) : 0;
 
-    let endExpr;
-    if (endVal > 0) {
-      endExpr = String(endVal);
-    } else if (endVal === -1) {
-      endExpr = 'list.size()';
-    } else if (endVal < -1) {
-      endExpr = `list.size() + (${endVal}) + 1`;
-    } else {
-      endExpr = 'list.size()';
-    }
+      let endExpr;
+      if (endVal > 0) {
+        endExpr = String(endVal);
+      } else if (endVal === -1) {
+        endExpr = 'list.size()';
+      } else if (endVal < -1) {
+        endExpr = `list.size() + (${endVal}) + 1`;
+      } else {
+        endExpr = 'list.size()';
+      }
 
-    const s = startVal > 1 ? startVal - 1 : 0;
-    let jsCode;
-    if (startVal > 1 || endVal > 0 || endVal < -1) {
-      jsCode = buildJsRule(`        var doc = org.jsoup.Jsoup.parse(result);
+      const s = startVal > 1 ? startVal - 1 : 0;
+      let jsCode;
+      if (startVal > 1 || endVal > 0 || endVal < -1) {
+        jsCode = buildJsRule(`        var doc = org.jsoup.Jsoup.parse(result);
         var list = doc.select("${baseSelector}");
         var start = ${s};
         var end = ${endExpr};
@@ -873,44 +986,48 @@ function handleIndexApply() {
           result.add(list.get(i));
         }
         return result;`, true);
-    } else {
-      jsCode = buildJsRule(`        var doc = org.jsoup.Jsoup.parse(result);
+      } else {
+        jsCode = buildJsRule(`        var doc = org.jsoup.Jsoup.parse(result);
         var list = doc.select("${baseSelector}");
         return list;`, true);
-    }
-
-    rule.fields[field.key].value = jsCode;
-  } else {
-    const singleVal = fieldData.listIndex.single ? parseInt(fieldData.listIndex.single, 10) : 0;
-    const selectedTag = fieldData.tagName || '';
-
-    let jsCode;
-    if (singleVal !== 0) {
-      const index = singleVal > 0 ? singleVal - 1 : singleVal;
-      let returnExpr;
-      if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) {
-        returnExpr = `String(list.get(${index}).attr("href"))`;
-      } else if (field.key === 'coverUrl') {
-        returnExpr = `String(list.get(${index}).attr("src"))`;
-      } else {
-        returnExpr = `String(list.get(${index}).text())`;
       }
 
-      jsCode = buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
+      rule.fields[field.key].value = jsCode;
+    } else {
+      const singleVal = fieldData.listIndex.single ? parseInt(fieldData.listIndex.single, 10) : 0;
+      const selectedTag = fieldData.tagName || '';
+
+      let jsCode;
+      if (singleVal !== 0) {
+        const index = singleVal > 0 ? singleVal - 1 : singleVal;
+        let returnExpr;
+        if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) {
+          returnExpr = `String(list.get(${index}).attr("href"))`;
+        } else if (field.key === 'coverUrl') {
+          returnExpr = `String(list.get(${index}).attr("src"))`;
+        } else {
+          returnExpr = `String(list.get(${index}).text())`;
+        }
+
+        jsCode = buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
     var list = doc.select("${baseSelector}");
     var index = ${index};
     return ${returnExpr};`);
-    } else {
-      if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) {
-        jsCode = selectedTag === 'a' ? baseSelector + '@href' : baseSelector + ' a@href';
-      } else if (field.key === 'coverUrl') {
-        jsCode = selectedTag === 'img' ? baseSelector + '@src' : baseSelector + ' img@src';
       } else {
-        jsCode = baseSelector + '@text';
+        if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) {
+          jsCode = selectedTag === 'a' ? baseSelector + '@href' : baseSelector + ' a@href';
+        } else if (field.key === 'coverUrl') {
+          jsCode = selectedTag === 'img' ? baseSelector + '@src' : baseSelector + ' img@src';
+        } else {
+          jsCode = baseSelector + '@text';
+        }
       }
-    }
 
-    rule.fields[field.key].value = jsCode;
+      rule.fields[field.key].value = jsCode;
+    }
+  } else {
+    // Native index mode
+    rule.fields[field.key].value = buildNativeIndexRule(baseSelector, field.key, fieldData, isListField);
   }
 
   saveState();
@@ -1069,6 +1186,9 @@ function bindEvents() {
   document.getElementById('checkUpdateBtn').addEventListener('click', handleCheckUpdate);
   document.getElementById('closeUpdateBtn').addEventListener('click', () => {
     document.getElementById('updateModal').classList.add('hidden');
+  });
+  document.getElementById('closeIndexTutorialBtn')?.addEventListener('click', () => {
+    document.getElementById('indexTutorialModal')?.classList.add('hidden');
   });
 
   document.getElementById('captureSearchUrlBtn').addEventListener('click', handleCaptureSearchUrl);
@@ -1463,6 +1583,19 @@ window.togglePreviews = function(header) {
   }
 };
 
+// Helper: build @ selector with smart attribute detection
+function buildAtSelector(sel, key, tag) {
+  const linkFields = ['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'];
+  if (linkFields.includes(key)) {
+    // If the selected element is already a link, use it directly
+    return tag === 'a' ? sel + '@href' : sel + ' a@href';
+  } else if (key === 'coverUrl') {
+    return tag === 'img' ? sel + '@src' : sel + ' img@src';
+  } else {
+    return sel + '@text';
+  }
+}
+
 function toLegadoRule(selector, fieldKey, fieldData, tagName) {
   const listFields = ['bookList', 'chapterList'];
   const isListField = listFields.includes(fieldKey);
@@ -1471,19 +1604,6 @@ function toLegadoRule(selector, fieldKey, fieldData, tagName) {
   const hasListIndex = fieldData?.listIndex?.start || fieldData?.listIndex?.end;
   const hasSingleIndex = fieldData?.listIndex?.single !== undefined && fieldData?.listIndex?.single !== '';
   const hasIndex = isListField ? hasListIndex : hasSingleIndex;
-
-  // Helper: build @ selector with smart attribute detection
-  function buildAtSelector(sel, key, tag) {
-    const linkFields = ['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'];
-    if (linkFields.includes(key)) {
-      // If the selected element is already a link, use it directly
-      return tag === 'a' ? sel + '@href' : sel + ' a@href';
-    } else if (key === 'coverUrl') {
-      return tag === 'img' ? sel + '@src' : sel + ' img@src';
-    } else {
-      return sel + '@text';
-    }
-  }
 
   // No index: return selector with @ extraction suffix
   if (!hasIndex) {
@@ -1518,21 +1638,27 @@ function toLegadoRule(selector, fieldKey, fieldData, tagName) {
     return buildAtSelector(selector, fieldKey, tagName);
   }
 
-  let returnExpr;
-  const linkFields = ['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'];
-  if (linkFields.includes(fieldKey)) {
-    const childSel = tagName === 'a' ? '' : ' a';
-    returnExpr = `String(list.select("${selector}${childSel}").get(${index}).attr("href"))`;
-  } else if (fieldKey === 'coverUrl') {
-    const childSel = tagName === 'img' ? '' : ' img';
-    returnExpr = `String(list.select("${selector}${childSel}").get(${index}).attr("src"))`;
-  } else {
-    returnExpr = `String(list.get(${index}).text())`;
-  }
+  if (fieldData.useJsIndex) {
+    let returnExpr;
+    const linkFields = ['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'];
+    if (linkFields.includes(fieldKey)) {
+      const childSel = tagName === 'a' ? '' : ' a';
+      returnExpr = `String(list.select("${selector}${childSel}").get(${index}).attr("href"))`;
+    } else if (fieldKey === 'coverUrl') {
+      const childSel = tagName === 'img' ? '' : ' img';
+      returnExpr = `String(list.select("${selector}${childSel}").get(${index}).attr("src"))`;
+    } else {
+      returnExpr = `String(list.get(${index}).text())`;
+    }
 
-  return buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
+    return buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
     var list = doc.select("${selector}");
     return ${returnExpr};`);
+  }
+
+  // Native index mode
+  const atPart = buildAtSelector('', fieldKey, tagName);
+  return `${selector}.${index}${atPart}`;
 }
 
 function handleSelectorSelected(message) {

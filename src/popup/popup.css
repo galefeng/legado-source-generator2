@@ -393,6 +393,42 @@ body {
   margin-left: auto;
 }
 
+/* ── Index Mode Toggle ──────────────────── */
+
+.index-mode-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.index-mode-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.index-mode-label input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.index-mode-hint {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.index-hint-text {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
 /* ── Index Row ──────────────────────────── */
 
 .index-row {
@@ -439,6 +475,73 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.index-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.index-label-row label {
+  margin-bottom: 0;
+}
+
+.index-label-row .btn {
+  padding: 2px 8px;
+  font-size: 11px;
+  height: auto;
+  min-height: 22px;
+}
+
+.index-tutorial-content {
+  max-height: 60vh;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.index-tutorial-content h4 {
+  font-size: 13px;
+  margin: 16px 0 8px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+
+.index-tutorial-content h4:first-child {
+  margin-top: 0;
+}
+
+.index-tutorial-content p {
+  margin: 6px 0;
+}
+
+.index-tutorial-content ul {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+
+.index-tutorial-content li {
+  margin: 4px 0;
+}
+
+.index-tutorial-content code {
+  background: var(--bg);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.index-tutorial-tip {
+  background: var(--bg);
+  border-left: 3px solid var(--accent);
+  padding: 8px 10px;
+  margin: 10px 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
 .btn-index-apply {

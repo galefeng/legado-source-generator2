@@ -327,6 +327,36 @@
       </div>
     </div>
 
+    <div id="indexTutorialModal" class="modal hidden">
+      <div class="modal-content">
+        <h3>索引教程</h3>
+        <div class="index-tutorial-content">
+          <h4>什么时候使用索引？</h4>
+          <p>当你选中一个元素后，预览区域会显示匹配到的结果。<strong>只有在单个容器内出现了多个不需要的元素，需要筛选其中一部分时才使用索引。</strong></p>
+          <p>正常情况下，预览里显示很多条，但那是从<strong>不同容器</strong>中获取到的，属于正常结果，<strong>不需要使用索引</strong>。</p>
+          <p class="index-tutorial-tip">💡 看不懂？那就先不要使用。如果抓取结果不符合预期，再回来尝试使用索引。</p>
+
+          <h4>怎么使用索引？</h4>
+          <p><strong>列表字段（范围）</strong></p>
+          <ul>
+            <li>正着数从 <strong>1</strong> 开始，1 就是第一个</li>
+            <li>负着数从末尾开始，<strong>-1</strong> 是倒数第一个，<strong>-2</strong> 是倒数第二个</li>
+            <li>区间是<strong>闭区间</strong>（包含两端）</li>
+            <li>例如 <code>[2, -2]</code>：从第 2 个取到倒数第 2 个（都包含），倒数第 1 个不在范围内</li>
+          </ul>
+          <p><strong>单值字段（单个位置）</strong></p>
+          <ul>
+            <li>输入正数：取正着数第 N 个</li>
+            <li>输入负数：取倒着数第 N 个</li>
+            <li>不填或填 1：取第一个（默认）</li>
+          </ul>
+        </div>
+        <div class="modal-actions">
+          <button id="closeIndexTutorialBtn" class="btn btn-primary">关闭</button>
+        </div>
+      </div>
+    </div>
+
   </div>
   <script src="batch-url-utils.js"></script>
   <script src="explore-url-editor.js"></script>
