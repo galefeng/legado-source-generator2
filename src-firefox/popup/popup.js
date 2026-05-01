@@ -68,7 +68,7 @@ const RULE_TYPES = {
 };
 
 let state = {
-  activeMode: 'searchUrl',
+  activeMode: 'basic',
   activeRuleType: 'search',
   rules: {
     explore: { currentStep: 0, fields: {}, fieldStates: {}, bookListSelector: null },
@@ -79,12 +79,14 @@ let state = {
   },
   exploreUrl: '',
   searchUrl: '',
+  bookSourceType: 0,
   bookSourceName: '',
   bookSourceUrl: '',
   // Captured search configuration
   searchConfig: null, // { method, url, charset, body, pageTemplate }
   headerItems: [],
-  enableCfShield: false,
+  bookSourceComment: '',
+  loginCheckJs: '',
 };
 
 const CF_LOGIN_CHECK_JS = `var resultUrl = result.url();
@@ -118,10 +120,11 @@ function renderModeTabs() {
   if (!container) return;
 
   const modes = [
+    { key: 'basic', label: '基本' },
     { key: 'searchUrl', label: '搜索URL' },
     { key: 'exploreUrl', label: '发现页URL' },
     { key: 'rules', label: '规则' },
-    { key: 'advanced', label: '进阶' },
+    { key: 'debug', label: '调试' },
   ];
 
   container.innerHTML = modes.map(m => {
@@ -148,7 +151,15 @@ function updateEditorVisibility() {
   const formArea = document.querySelector('.form-area');
   const navButtons = document.getElementById('navButtons');
 
-  if (state.activeMode === 'searchUrl') {
+  if (state.activeMode === 'basic') {
+    searchEditor?.classList.add('hidden');
+    exploreEditor?.classList.add('hidden');
+    advancedPanel?.classList.remove('hidden');
+    ruleTabs?.classList.add('hidden');
+    stepIndicator?.classList.add('hidden');
+    formArea?.classList.add('hidden');
+    navButtons?.classList.add('hidden');
+  } else if (state.activeMode === 'searchUrl') {
     searchEditor?.classList.remove('hidden');
     exploreEditor?.classList.add('hidden');
     advancedPanel?.classList.add('hidden');
@@ -207,7 +218,19 @@ function loadState() {
             { key: 'Referer', value: state.advancedHeaderRefer || '' },
           ].filter(item => item.value);
       state.headerItems = migrated;
-      document.getElementById('enableCfShield').checked = !!state.enableCfShield;
+      // Migrate old enableCfShield boolean -> loginCheckJs string
+      if (state.enableCfShield === true && !state.loginCheckJs) {
+        state.loginCheckJs = CF_LOGIN_CHECK_JS;
+        delete state.enableCfShield;
+      } else if (state.enableCfShield !== undefined) {
+        delete state.enableCfShield;
+      }
+
+      const loginCheckJsEl = document.getElementById('loginCheckJs');
+      if (loginCheckJsEl) loginCheckJsEl.value = state.loginCheckJs || '';
+
+      const bookCommentEl = document.getElementById('bookSourceComment');
+      if (bookCommentEl) bookCommentEl.value = state.bookSourceComment || '';
 
       // Migrate old data: auto-detect JS mode from existing <js> rules
       Object.keys(state.rules || {}).forEach((ruleType) => {
@@ -231,6 +254,12 @@ function loadState() {
         autoResizeTextarea(document.getElementById('searchUrlTemplate'));
       }, 0);
     }
+
+    const contentTypeSelect = document.getElementById('bookSourceTypeSelect');
+    if (contentTypeSelect) {
+      contentTypeSelect.value = String(state.bookSourceType || 0);
+    }
+
     renderModeTabs();
     renderRuleTypeTabs();
     updateStepIndicator();
@@ -304,8 +333,11 @@ function saveState() {
   state.bookSourceName = document.getElementById('bookSourceName').value;
   state.bookSourceUrl = document.getElementById('bookSourceUrl').value;
   state.searchUrl = document.getElementById('searchUrlTemplate').value;
+  state.bookSourceType = Number(document.getElementById('bookSourceTypeSelect')?.value) || 0;
   state.headerItems = collectHeaderItemsFromDom();
-  state.enableCfShield = !!document.getElementById('enableCfShield')?.checked;
+  const loginCheckJsEl = document.getElementById('loginCheckJs');
+  state.loginCheckJs = loginCheckJsEl ? loginCheckJsEl.value : '';
+  state.bookSourceComment = document.getElementById('bookSourceComment')?.value || '';
   chrome.storage.local.set({ legadoSourceState: state });
 }
 
@@ -434,16 +466,17 @@ function renderFields() {
   const rawValue = fieldData.value || '';
   const value = (fieldData.webView && isLinkField && rawValue) ? applyWebView(rawValue) : rawValue;
   const isManual = fieldState === 'manual';
-  const isListField = ['bookList', 'chapterList'].includes(field.key);
+  const isNativeListField = ['bookList', 'chapterList'].includes(field.key);
+  const isPickerListField = isNativeListField;
   const fieldIndex = fieldData.listIndex || {};
   const filteredPreviews = fieldData.previews
-    ? filterPreviewsByIndex(fieldData.previews, fieldIndex, isListField)
+    ? filterPreviewsByIndex(fieldData.previews, fieldIndex, isPickerListField)
     : fieldData.previews;
 
   const useJsIndex = fieldData.useJsIndex || false;
   const indexModeLabel = useJsIndex ? '当前：JS 脚本模式' : '当前：原生索引语法';
 
-  const indexHTML = isListField
+  const indexHTML = (isNativeListField
     ? `<div class="index-row">
         <div class="index-mode-row">
           <label class="index-mode-label" title="原生模式生成更简洁的规则；JS模式支持更复杂的自定义逻辑">
@@ -479,7 +512,7 @@ function renderFields() {
           <input type="text" id="indexSingle" class="input input--center input--50" value="${escapeHtml(fieldIndex.single || '')}" placeholder="1">
           <button id="indexApplyBtn" class="btn btn-action btn-index-apply">确认</button>
         </div>
-      </div>`;
+      </div>`);
 
   container.innerHTML = `
     <div class="field-item">
@@ -503,7 +536,7 @@ function renderFields() {
         ` : ''}
       </div>
       ${indexHTML}
-      ${isListField ? `
+      ${isPickerListField ? `
       <div class="list-hint">⚠️ <strong>需要选择两个同列表元素</strong>，自动提取交集生成选择器</div>
       ` : ''}
       ${fieldState === 'selected' && (fieldData.rawSelector || (fieldData.state === 'manual' && fieldData.value)) ? `
@@ -666,8 +699,8 @@ function handleSelectElement() {
   const rule = getRuleState();
   const field = fields[rule.currentStep];
 
-  const listFields = ['bookList', 'chapterList'];
-  const isListField = listFields.includes(field.key);
+  const nativeListFields = ['bookList', 'chapterList'];
+  const isListField = nativeListFields.includes(field.key);
   const isPageScopedList = ['explore', 'search'].includes(state.activeRuleType);
 
   if (!isListField && isPageScopedList && !rule.bookListSelector) {
@@ -924,6 +957,7 @@ function handleUseJsIndexChange(e) {
   const fields = getFields();
   const rule = getRuleState();
   const field = fields[rule.currentStep];
+
   const fieldData = rule.fields[field.key];
 
   if (!fieldData) return;
@@ -949,6 +983,7 @@ function handleIndexApply() {
   const fields = getFields();
   const rule = getRuleState();
   const field = fields[rule.currentStep];
+
   const isListField = ['bookList', 'chapterList'].includes(field.key);
 
   const fieldData = rule.fields[field.key];
@@ -1181,6 +1216,12 @@ function bindEvents() {
 
   document.getElementById('bookSourceName').addEventListener('input', saveState);
   document.getElementById('bookSourceUrl').addEventListener('input', saveState);
+  document.getElementById('bookSourceTypeSelect')?.addEventListener('change', (e) => {
+    state.bookSourceType = Number(e.target.value) || 0;
+    saveState();
+    renderFields();
+    renderFieldStatusSummary();
+  });
 
   autoResizeTextarea(document.getElementById('bookSourceName'));
   autoResizeTextarea(document.getElementById('bookSourceUrl'));
@@ -1223,7 +1264,16 @@ function bindEvents() {
   document.getElementById('addHeaderItemBtn')?.addEventListener('click', () => addHeaderItem('', ''));
   document.getElementById('addUaHeaderBtn')?.addEventListener('click', addDefaultUserAgentHeader);
   document.getElementById('addRefererHeaderBtn')?.addEventListener('click', addDefaultRefererHeader);
-  document.getElementById('enableCfShield')?.addEventListener('change', saveState);
+  document.getElementById('autoFillCfBtn')?.addEventListener('click', () => {
+    const el = document.getElementById('loginCheckJs');
+    if (el) {
+      el.value = CF_LOGIN_CHECK_JS;
+      autoResizeTextarea(el);
+      saveState();
+    }
+  });
+  document.getElementById('loginCheckJs')?.addEventListener('input', saveState);
+  document.getElementById('bookSourceComment')?.addEventListener('input', saveState);
   document.getElementById('insertPagePlaceholderBtn').addEventListener('click', () => {
     const el = document.getElementById('searchUrlTemplate');
     const pos = el.selectionStart;
@@ -1420,7 +1470,7 @@ function generateJson() {
     ruleToc: buildRuleSection('toc'),
     ruleContent: buildRuleSection('content'),
     ruleExplore: buildRuleSection('explore'),
-    bookSourceType: 0,
+    bookSourceType: Number(state.bookSourceType) || 0,
     bookSourceUrl: (state.bookSourceUrl || '').trim(),
     bookSourceName: (state.bookSourceName || '').trim(),
     searchUrl: state.searchUrl || '',
@@ -1436,8 +1486,13 @@ function generateJson() {
       header[key] = value;
     }
   });
-  result.header = header;
-  result.loginCheckJs = state.enableCfShield ? CF_LOGIN_CHECK_JS : '';
+  if (Object.keys(header).length > 0) result.header = header;
+  if (state.loginCheckJs && state.loginCheckJs.trim()) {
+    result.loginCheckJs = state.loginCheckJs.trim();
+  }
+  if (state.bookSourceComment && state.bookSourceComment.trim()) {
+    result.bookSourceComment = state.bookSourceComment.trim();
+  }
 
   return result;
 }
@@ -1541,13 +1596,20 @@ function handleReset() {
   state.activeRuleType = 'search';
   state.searchUrl = '';
   state.searchConfig = null;
+  state.bookSourceType = 0;
   state.bookSourceName = '';
   state.bookSourceUrl = '';
+  state.bookSourceComment = '';
+  state.loginCheckJs = '';
 
   chrome.storage.local.remove(['legadoSourceState', 'exploreEditorState']);
 
   document.getElementById('bookSourceName').value = '';
   document.getElementById('bookSourceUrl').value = '';
+  document.getElementById('bookSourceComment').value = '';
+  document.getElementById('loginCheckJs').value = '';
+  const contentTypeSelect = document.getElementById('bookSourceTypeSelect');
+  if (contentTypeSelect) contentTypeSelect.value = '0';
   document.getElementById('searchUrlTemplate').value = '';
   document.getElementById('searchMethod').value = 'GET';
   document.getElementById('searchCharset').value = '';
