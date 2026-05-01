@@ -21,6 +21,7 @@
     <div class="rule-type-tabs" id="ruleTypeTabs"></div>
 
     <div id="searchUrlEditor" class="search-url-editor hidden">
+      <div class="list-hint">⚠️ 请在网站的搜索框内手动输入 <strong>「我的」</strong>，再点击「捕获」按钮</div>
       <div class="search-url-row">
         <button id="captureSearchUrlBtn" class="btn btn-action btn-capture-search" title="从当前页面捕获搜索请求">🔍 捕获</button>
       </div>
@@ -125,9 +126,9 @@
 
     <div id="advancedPanel" class="advanced-panel hidden">
       <div class="advanced-section">
-        <div class="advanced-section-head">
+        <div class="advanced-section-head" style="justify-content:flex-start;gap:8px">
           <label class="advanced-label">源类型</label>
-          <select id="bookSourceTypeSelect" class="input input--sans">
+          <select id="bookSourceTypeSelect" class="input input--sans" style="width:80px">
             <option value="0">文本</option>
             <option value="1">音频</option>
             <option value="2">图片</option>
@@ -138,7 +139,10 @@
       </div>
 
       <div class="advanced-section">
-        <label class="advanced-label">源名称</label>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <label class="advanced-label">源名称</label>
+          <button id="autoFillBtn" class="btn btn-action" title="自动填充当前页面信息">📋 自动填充</button>
+        </div>
         <textarea id="bookSourceName" placeholder="源名称" class="input input--sans" rows="1"></textarea>
       </div>
 
@@ -148,10 +152,7 @@
       </div>
 
       <div class="advanced-section">
-        <button id="autoFillBtn" class="btn btn-action" title="自动填充当前页面信息">📋 自动填充</button>
-      </div>
-
-      <div class="advanced-section">
+        <label class="advanced-label">源注释</label>
         <textarea id="bookSourceComment" placeholder="源注释" class="input input--sans" rows="1"></textarea>
       </div>
 

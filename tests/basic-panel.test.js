@@ -37,7 +37,7 @@ function buildRuleSection(type) {
     const fd = rule.fields[f.key];
     if (fd && fd.value) section[f.key] = fd.value;
   });
-  return section;
+  return Object.keys(section).length > 0 ? section : "";
 }
 
 function generateJson() {
@@ -55,10 +55,6 @@ function generateJson() {
     exploreUrl: exploreResult,
   };
 
-  if (state.bookSourceComment && state.bookSourceComment.trim()) {
-    result.bookSourceComment = state.bookSourceComment.trim();
-  }
-
   const items = Array.isArray(state.headerItems) ? state.headerItems : [];
   const header = {};
   items.forEach(item => {
@@ -66,11 +62,9 @@ function generateJson() {
     const value = (item?.value || '').trim();
     if (key && value) header[key] = value;
   });
-  if (Object.keys(header).length > 0) result.header = header;
-
-  if (state.loginCheckJs && state.loginCheckJs.trim()) {
-    result.loginCheckJs = state.loginCheckJs.trim();
-  }
+  result.header = Object.keys(header).length > 0 ? header : "";
+  result.loginCheckJs = state.loginCheckJs?.trim() || "";
+  result.bookSourceComment = state.bookSourceComment?.trim() || "";
 
   return result;
 }
@@ -83,16 +77,16 @@ assert.equal(json.loginCheckJs, CF_LOGIN_CHECK_JS, 'loginCheckJs should be prese
 // Test 2
 state.bookSourceComment = '';
 json = generateJson();
-assert.equal(json.bookSourceComment, undefined, 'empty comment should not appear');
+assert.equal(json.bookSourceComment, '', 'empty comment should be empty string');
 
 // Test 3
 state.loginCheckJs = '';
 json = generateJson();
-assert.equal(json.loginCheckJs, undefined, 'empty loginCheckJs should not appear');
+assert.equal(json.loginCheckJs, '', 'empty loginCheckJs should be empty string');
 
 // Test 4
 json = generateJson();
-assert.equal(json.header, undefined, 'empty header should not appear');
+assert.equal(json.header, '', 'empty header should be empty string');
 
 // Test 5: header with content
 state.headerItems = [{ key: 'User-Agent', value: 'Mozilla' }];

@@ -124,7 +124,6 @@ function renderModeTabs() {
     { key: 'searchUrl', label: '搜索URL' },
     { key: 'exploreUrl', label: '发现页URL' },
     { key: 'rules', label: '规则' },
-    { key: 'debug', label: '调试' },
   ];
 
   container.innerHTML = modes.map(m => {
@@ -171,14 +170,6 @@ function updateEditorVisibility() {
     searchEditor?.classList.add('hidden');
     exploreEditor?.classList.remove('hidden');
     advancedPanel?.classList.add('hidden');
-    ruleTabs?.classList.add('hidden');
-    stepIndicator?.classList.add('hidden');
-    formArea?.classList.add('hidden');
-    navButtons?.classList.add('hidden');
-  } else if (state.activeMode === 'advanced') {
-    searchEditor?.classList.add('hidden');
-    exploreEditor?.classList.add('hidden');
-    advancedPanel?.classList.remove('hidden');
     ruleTabs?.classList.add('hidden');
     stepIndicator?.classList.add('hidden');
     formArea?.classList.add('hidden');
@@ -1486,13 +1477,9 @@ function generateJson() {
       header[key] = value;
     }
   });
-  if (Object.keys(header).length > 0) result.header = header;
-  if (state.loginCheckJs && state.loginCheckJs.trim()) {
-    result.loginCheckJs = state.loginCheckJs.trim();
-  }
-  if (state.bookSourceComment && state.bookSourceComment.trim()) {
-    result.bookSourceComment = state.bookSourceComment.trim();
-  }
+  result.header = Object.keys(header).length > 0 ? header : "";
+  result.loginCheckJs = state.loginCheckJs?.trim() || "";
+  result.bookSourceComment = state.bookSourceComment?.trim() || "";
 
   return result;
 }
@@ -1554,7 +1541,7 @@ function buildRuleSection(type) {
     }
   });
 
-  return section;
+  return Object.keys(section).length > 0 ? section : "";
 }
 
 function handleCopy() {
@@ -1594,6 +1581,7 @@ function handleReset() {
     content: { currentStep: 0, fields: {}, fieldStates: {}, bookListSelector: null },
   };
   state.activeRuleType = 'search';
+  state.exploreUrl = '';
   state.searchUrl = '';
   state.searchConfig = null;
   state.bookSourceType = 0;
@@ -1999,7 +1987,7 @@ function showSearchCaptureForm(data) {
     // POST, non-UTF8, or webView: use JSON format
     const config = {};
     if (needsCharset) config.charset = charset;
-    config.method = method;
+    if (method !== 'GET') config.method = method;
     if (method === 'POST' && body) {
       config.body = body;
     }
@@ -2053,7 +2041,7 @@ function rebuildSearchUrlFromForm() {
   if (method === 'POST' || needsCharset || webView) {
     const config = {};
     if (needsCharset) config.charset = charset;
-    config.method = method;
+    if (method !== 'GET') config.method = method;
     if (method === 'POST' && body) {
       config.body = body;
     }

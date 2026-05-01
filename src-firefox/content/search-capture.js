@@ -1,9 +1,8 @@
 /**
  * Content Script - Search URL Capture
  * 
- * Strategy: User clicks the site's search button → we find the associated form →
- * auto-fill a preset keyword → submit → intercept the URL.
- * No hardcoded input selectors needed.
+ * Strategy: User types "我的" into the search box → clicks the site's search button →
+ * we intercept the outgoing request and replace "我的" with {{key}}.
  */
 
 (function () {
@@ -24,8 +23,7 @@
   // SessionStorage key for pending capture across page navigations
   const PENDING_CAPTURE_KEY = 'legado_pending_search_capture';
 
-  // Track which input(s) we filled
-  let filledInputs = [];  // { element, originalValue }
+
 
   function savePendingCapture(data) {
     try {
@@ -42,28 +40,7 @@
     } catch (e) {}
   }
 
-  function findStandaloneSearchInputs(searchButton) {
-    const buttonRect = searchButton.getBoundingClientRect();
-    return Array.from(document.querySelectorAll('input[type="search"], input[type="text"], input:not([type])'))
-      .filter(inp => {
-        if (inp.disabled || inp.readOnly) return false;
-        const rect = inp.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0;
-      })
-      .map(inp => {
-        const hint = [inp.name || '', inp.id || '', inp.placeholder || '', String(inp.className || '')].join(' ').toLowerCase();
-        const rect = inp.getBoundingClientRect();
-        const dx = Math.abs(rect.left - buttonRect.left);
-        const dy = Math.abs(rect.top - buttonRect.top);
-        let score = (dx < 420 && dy < 220) ? 2 : 0;
-        if (/search|query|keyword|kw|\u641c|\u67e5|\u4e66\u540d/.test(hint)) score += 3;
-        return { inp, score };
-      })
-      .filter(item => item.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map(item => item.inp)
-      .slice(0, 1);
-  }
+
 
   /**
    * Detect charset from page <meta> tags
@@ -123,45 +100,9 @@
     return { form, inputsToFill: inputs, isLink: false, linkUrl: null };
   }
 
-  /**
-   * Fill ALL text inputs with preset keyword
-   */
-  function fillAllInputs(inputs) {
-    filledInputs = [];
-    for (const input of inputs) {
-      const originalValue = input.value || '';
-      filledInputs.push({ element: input, originalValue });
 
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype, 'value'
-      ).set;
-      nativeInputValueSetter.call(input, PRESET_KEYWORD);
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-    }
 
-    console.log('[search-capture] Filled', inputs.length, 'inputs:', inputs.map(i => ({
-      name: i.name,
-      id: i.id,
-      value: i.value,
-    })));
 
-    return inputs.length > 0;
-  }
-
-  /**
-   * Restore original values in filled inputs
-   */
-  function restoreFilledInputs() {
-    for (const info of filledInputs) {
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype, 'value'
-      ).set;
-      nativeInputValueSetter.call(info.element, info.originalValue);
-      info.element.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    filledInputs = [];
-  }
 
   /**
    * 仅用于规则模板拼接，真实请求编码交给浏览器原生表单提交。
@@ -373,7 +314,6 @@
     captureActive = false;
     restoreOriginals();
     stopUrlPolling();
-    restoreFilledInputs();
     clearPendingCapture();
 
     chrome.runtime.sendMessage({
@@ -423,11 +363,6 @@
 
       const searchInfo = findSearchForm(searchButton);
       if (!searchInfo) {
-        const standaloneInputs = findStandaloneSearchInputs(searchButton);
-        if (standaloneInputs.length) {
-          fillAllInputs(standaloneInputs);
-        }
-
         savePendingCapture({
           mode: 'await-navigation',
           method: 'GET',
@@ -476,18 +411,12 @@
       }
 
       // It's a form
-      if (searchInfo.inputsToFill.length > 0) {
-        fillAllInputs(searchInfo.inputsToFill);
-      } else {
-        console.log('[search-capture] No text inputs found in form, proceeding without filling');
-      }
-
       // Mark that the click handler has processed this form.
       // The actual submission will be handled by interceptFormSubmits (for standard submit)
       // or by URL polling (for JS-driven navigation like window.location.href).
       clickHandlerProcessedForm = true;
 
-      console.log('[search-capture] Filled form, letting natural submission proceed');
+      console.log('[search-capture] Form click captured, letting natural submission proceed');
     };
 
     document.addEventListener('click', handler, true);
@@ -588,18 +517,8 @@
       const form = e.target;
       if (!form || form.tagName !== 'FORM') return;
 
-      // Determine if we should handle this submission.
-      let shouldProcess = false;
-      if (clickHandlerProcessedForm) {
-        // The click handler filled inputs and let the natural submission proceed.
-        clickHandlerProcessedForm = false;
-        shouldProcess = true;
-      } else {
-        // Check if this form contains one of our filled inputs (e.g. Enter key in input).
-        const hasFilledInput = filledInputs.some(info => form.contains(info.element));
-        if (hasFilledInput) shouldProcess = true;
-      }
-      if (!shouldProcess) return;
+      if (!clickHandlerProcessedForm) return;
+      clickHandlerProcessedForm = false;
 
       const action = form.getAttribute('action') || form.action || window.location.href;
       const method = (form.getAttribute('method') || 'GET').toUpperCase();
@@ -638,7 +557,6 @@
         e.stopImmediatePropagation();
 
         submitFormAsGetInNewTab(form);
-        restoreFilledInputs();
 
         captureActive = false;
         restoreOriginals();
@@ -764,7 +682,6 @@
 
   function startCapture() {
     captureActive = true;
-    filledInputs = [];
     clickHandlerProcessedForm = false;
     lockedSearchButton = null;
     clearPendingCapture();
@@ -792,7 +709,6 @@
       document.removeEventListener('submit', formSubmitHandler, true);
       formSubmitHandler = null;
     }
-    restoreFilledInputs();
     // Don't send searchCaptureForms here - cancellation means user doesn't want any data
   }
 
