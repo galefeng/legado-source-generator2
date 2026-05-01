@@ -465,16 +465,20 @@ function renderFields() {
     : fieldData.previews;
 
   const useJsIndex = fieldData.useJsIndex || false;
-  const indexModeLabel = useJsIndex ? '当前：JS 脚本模式' : '当前：原生索引语法';
 
   const indexHTML = (isNativeListField
     ? `<div class="index-row">
         <div class="index-mode-row">
-          <label class="index-mode-label" title="原生模式生成更简洁的规则；JS模式支持更复杂的自定义逻辑">
-            <input type="checkbox" id="useJsIndex" ${useJsIndex ? 'checked' : ''}>
-            JS 脚本模式
-          </label>
-          <span class="index-mode-hint">${indexModeLabel}</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <label class="index-mode-label" title="原生模式生成更简洁的规则；JS模式支持更复杂的自定义逻辑">
+              <input type="checkbox" id="useJsIndex" ${useJsIndex ? 'checked' : ''}>
+              JS 脚本模式
+            </label>
+            <label class="index-mode-label" title="启用后将在规则前插入调试日志">
+              <input type="checkbox" id="debugCheckbox" ${fieldData.debug ? 'checked' : ''}>
+              调试模式
+            </label>
+          </div>
         </div>
         <div class="index-label-row">
           <label>索引范围</label>
@@ -489,11 +493,16 @@ function renderFields() {
       </div>`
     : `<div class="index-row index-row-single">
         <div class="index-mode-row">
-          <label class="index-mode-label" title="原生模式生成更简洁的规则；JS模式支持更复杂的自定义逻辑">
-            <input type="checkbox" id="useJsIndex" ${useJsIndex ? 'checked' : ''}>
-            JS 脚本模式
-          </label>
-          <span class="index-mode-hint">${indexModeLabel}</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <label class="index-mode-label" title="原生模式生成更简洁的规则；JS模式支持更复杂的自定义逻辑">
+              <input type="checkbox" id="useJsIndex" ${useJsIndex ? 'checked' : ''}>
+              JS 脚本模式
+            </label>
+            <label class="index-mode-label" title="启用后将在规则前插入调试日志">
+              <input type="checkbox" id="debugCheckbox" ${fieldData.debug ? 'checked' : ''}>
+              调试模式
+            </label>
+          </div>
         </div>
         <div class="index-label-row">
           <label>索引</label>
@@ -679,6 +688,32 @@ function bindFieldEvents() {
       const field = fields[rule.currentStep];
       if (!rule.fields[field.key]) rule.fields[field.key] = {};
       rule.fields[field.key].webView = !rule.fields[field.key].webView;
+      saveState();
+      renderFields();
+    });
+  }
+  const debugCheckbox = document.getElementById('debugCheckbox');
+  if (debugCheckbox) {
+    debugCheckbox.addEventListener('change', (e) => {
+      const fields = getFields();
+      const rule = getRuleState();
+      const field = fields[rule.currentStep];
+      if (!rule.fields[field.key]) rule.fields[field.key] = {};
+      const fieldData = rule.fields[field.key];
+
+      const DEBUG_PREFIX = '<js>java.log("输入:" + result);</js>';
+
+      if (e.target.checked) {
+        if (!fieldData.value) {
+          fieldData.value = DEBUG_PREFIX;
+        } else if (!fieldData.value.startsWith(DEBUG_PREFIX)) {
+          fieldData.value = DEBUG_PREFIX + fieldData.value;
+        }
+      } else if (fieldData.value && fieldData.value.startsWith(DEBUG_PREFIX)) {
+        fieldData.value = fieldData.value.slice(DEBUG_PREFIX.length);
+      }
+      fieldData.debug = e.target.checked;
+
       saveState();
       renderFields();
     });
