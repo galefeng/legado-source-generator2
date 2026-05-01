@@ -63,6 +63,7 @@ const RULE_TYPES = {
       { key: 'subContent', label: '后续正文', required: false },
       { key: 'title', label: '章节标题', required: false },
       { key: 'nextContentUrl', label: '下一页正文', required: false },
+      { key: 'webJs', label: '脚本注入', required: false },
     ],
   },
 };
@@ -452,6 +453,38 @@ function renderFields() {
 
   const field = fields[rule.currentStep];
   const fieldData = rule.fields[field.key] || {};
+
+  if (field.key === 'webJs') {
+    const value = fieldData.value || '';
+    container.innerHTML = `
+      <div class="field-item">
+        <label>${field.label}</label>
+        <div class="field-value">
+          <textarea id="fieldValue" class="input" rows="1"
+            placeholder="请输入脚本内容">${escapeHtml(value)}</textarea>
+        </div>
+        <div class="field-actions">
+          <button id="skipBtn" class="btn btn-action">跳过</button>
+          <button id="lazyLoadBtn" class="btn btn-action">懒加载</button>
+          <button id="clearBtn" class="btn btn-action btn-clear">清空</button>
+        </div>
+      </div>
+    `;
+    const textarea = document.getElementById('fieldValue');
+    textarea.addEventListener('input', handleFieldInput);
+    autoResizeTextarea(textarea);
+    document.getElementById('skipBtn').addEventListener('click', handleSkip);
+    document.getElementById('clearBtn').addEventListener('click', handleClearField);
+    document.getElementById('lazyLoadBtn').addEventListener('click', () => {
+      const contentField = state.rules.content?.fields?.content;
+      if (contentField?.rawSelector) {
+        document.getElementById('lazySelector').value = contentField.rawSelector;
+      }
+      document.getElementById('lazyLoadModal').classList.remove('hidden');
+    });
+    return;
+  }
+
   const fieldState = rule.fieldStates[field.key] || 'pending';
   const isLinkField = LINK_FIELDS.includes(field.key);
   const rawValue = fieldData.value || '';
@@ -1262,6 +1295,19 @@ function bindEvents() {
     document.getElementById('indexTutorialModal')?.classList.add('hidden');
   });
 
+  document.getElementById('lazyGenerateBtn')?.addEventListener('click', () => {
+    const script = generateLazyLoadScript();
+    const textarea = document.getElementById('fieldValue');
+    if (textarea) {
+      textarea.value = script;
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    document.getElementById('lazyLoadModal')?.classList.add('hidden');
+  });
+  document.getElementById('lazyCancelBtn')?.addEventListener('click', () => {
+    document.getElementById('lazyLoadModal')?.classList.add('hidden');
+  });
+
   document.getElementById('captureSearchUrlBtn').addEventListener('click', handleCaptureSearchUrl);
   document.getElementById('searchCaptureCancelListenBtn').addEventListener('click', handleCancelSearchListen);
   document.getElementById('searchMethod').addEventListener('change', onSearchConfigChange);
@@ -1428,11 +1474,60 @@ function autoResizeTextarea(el) {
   const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 19;
   const maxHeight = lineHeight * 10;
   const resize = () => {
+    const current = parseFloat(el.style.height) || 0;
+    if (current > maxHeight) return;
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, maxHeight) + 'px';
   };
   el.addEventListener('input', resize);
   resize();
+}
+
+function generateLazyLoadScript() {
+  const selector = document.getElementById('lazySelector').value.trim() || '.read-content';
+  const checkTarget = document.getElementById('lazyCheckTarget').value;
+  const expectPattern = document.getElementById('lazyExpect').value.trim();
+  const rejectPattern = document.getElementById('lazyReject').value.trim();
+  const readyCheck = document.getElementById('lazyReadyCheck').value.trim();
+  const normalizeWhitespace = document.getElementById('lazyNormalize').checked;
+  const scrollToBottom = document.getElementById('lazyScroll').checked;
+
+  return `(() => {
+  // ========== 用户配置区 ==========
+  const selector = '${selector}';
+  const checkTarget = '${checkTarget}';
+  const expectPattern = ${expectPattern || 'null'};
+  const rejectPattern = ${rejectPattern || 'null'};
+  const readyCheck = ${readyCheck ? `(${readyCheck})` : 'null'};
+  const normalizeWhitespace = ${normalizeWhitespace};
+  const scrollToBottom = ${scrollToBottom};
+  // ==============================
+
+  if (scrollToBottom && !window.__legado_scrolled) {
+    window.scrollTo(0, document.body.scrollHeight);
+    window.__legado_scrolled = true;
+    return null;
+  }
+
+  const el = document.querySelector(selector);
+  if (!el) return null;
+
+  if (typeof readyCheck === 'function') {
+    return readyCheck(el) ? document.documentElement.outerHTML : null;
+  }
+
+  let content = checkTarget === 'html'
+    ? el.outerHTML
+    : (el.innerText || el.textContent || '');
+  if (checkTarget === 'text' && normalizeWhitespace) {
+    content = content.replace(/\\s+/g, ' ').trim();
+  }
+
+  if (rejectPattern && rejectPattern.test(content)) return null;
+  if (expectPattern && !expectPattern.test(content)) return null;
+
+  return document.documentElement.outerHTML;
+})();`;
 }
 
 function handleNext() {

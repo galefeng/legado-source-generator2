@@ -88,7 +88,6 @@
 
 textarea.input {
   min-height: 32px;
-  max-height: calc(12px * 1.4 * 10 + 16px);
   resize: vertical;
 }
 
@@ -362,6 +361,91 @@ body {
 
 .field-actions .btn-clear {
   margin-left: auto;
+}
+
+/* ── Lazy Load Config Panel ──────────────── */
+
+.lazy-config {
+  margin: 8px 0;
+  padding: 12px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lazy-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lazy-row label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.lazy-row input[type="text"],
+.lazy-row select {
+  font-size: 13px;
+}
+
+.lazy-row--checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.lazy-hint {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.lazy-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.lazy-tutorial {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.lazy-tutorial summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.lazy-tutorial-content {
+  margin-top: 8px;
+  padding: 12px;
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+  line-height: 1.6;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.lazy-tutorial-content h4 {
+  margin: 8px 0 4px;
+  font-size: 13px;
+}
+
+.lazy-tutorial-content p {
+  margin: 4px 0;
+}
+
+.lazy-tutorial-content code {
+  background: var(--bg-surface);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
 }
 
 /* ── Index Row ──────────────────────────── */

@@ -446,6 +446,61 @@
       </div>
     </div>
 
+    <div id="lazyLoadModal" class="modal hidden">
+      <div class="modal-content">
+        <h3>懒加载等待模板配置</h3>
+        <div class="lazy-config">
+          <div class="lazy-row">
+            <label>元素选择器</label>
+            <input type="text" id="lazySelector" class="input input--sans" value=".read-content">
+          </div>
+          <div class="lazy-row">
+            <label>检测目标</label>
+            <select id="lazyCheckTarget" class="input input--sans">
+              <option value="html" selected>html (outerHTML)</option>
+              <option value="text">text (innerText)</option>
+            </select>
+          </div>
+          <div class="lazy-row">
+            <label>必须匹配 <span class="lazy-hint">(正则，留空关闭)</span></label>
+            <input type="text" id="lazyExpect" class="input input--sans" placeholder="例：正文内容">
+          </div>
+          <div class="lazy-row">
+            <label>排除匹配 <span class="lazy-hint">(正则，留空关闭)</span></label>
+            <input type="text" id="lazyReject" class="input input--sans" value="/加载中|loading|请稍候/i">
+          </div>
+          <div class="lazy-row">
+            <label>自定义就绪检测 <span class="lazy-hint">(函数体，留空关闭)</span></label>
+            <input type="text" id="lazyReadyCheck" class="input input--sans" placeholder="例：el.querySelectorAll('img[src]').length > 0">
+          </div>
+          <div class="lazy-row lazy-row--checkbox">
+            <label><input type="checkbox" id="lazyNormalize" checked> 压缩空白符 (仅 text 模式)</label>
+          </div>
+          <div class="lazy-row lazy-row--checkbox">
+            <label><input type="checkbox" id="lazyScroll" checked> 首次滚动到底部</label>
+          </div>
+        </div>
+        <details class="lazy-tutorial">
+          <summary>使用说明</summary>
+          <div class="lazy-tutorial-content">
+            <p>此模板用于解决懒加载资源获取不到的问题。配置后生成脚本，阅读器会反复执行直到页面就绪。</p>
+            <h4>参数说明</h4>
+            <p><strong>元素选择器</strong><br>等待出现的 CSS 选择器，例如 <code>.read-content</code>、<code>#chapter-content</code>。<br>如果正文内容字段已选择过元素，会自动填入。</p>
+            <p><strong>检测目标</strong><br><code>html</code>：检查元素的 outerHTML（默认，适合大多数场景）<br><code>text</code>：检查元素的 innerText（仅需匹配文字内容时使用）</p>
+            <p><strong>必须匹配</strong>（正则，留空关闭）<br>检测目标中必须包含的内容。成功匹配时，认为网页已就绪并返回页面 HTML。<br>留空表示不检查，直接返回。<br>例：<code>/正文/</code> — 页面包含"正文"二字时立即视为就绪。</p>
+            <p><strong>排除匹配</strong>（正则，留空关闭）<br>检测目标中不能包含的内容。匹配到则视为未就绪，继续等待。<br>默认：<code>/加载中|loading|请稍候/i</code> — 页面仍在加载时继续等待。</p>
+            <p><strong>自定义就绪检测</strong>（函数体，留空关闭）<br>填写后独占判断，正则不生效。返回 <code>true</code> 表示就绪。<br>例：<code>el.querySelectorAll('img[src]:not([src^="data:"])').length &gt; 0</code><br>等待图片全部加载完成（非 data URL）。</p>
+            <p><strong>压缩空白符</strong><br>仅 text 模式生效。将连续空白符压缩为单个空格后再匹配。</p>
+            <p><strong>首次滚动到底部</strong><br>执行时先滚动到页面底部触发懒加载，下次执行再检查内容。<br>适用于图片懒加载场景。</p>
+          </div>
+        </details>
+        <div class="modal-actions">
+          <button id="lazyGenerateBtn" class="btn btn-primary">生成并插入</button>
+          <button id="lazyCancelBtn" class="btn btn-secondary">取消</button>
+        </div>
+      </div>
+    </div>
+
   </div>
   <script src="batch-url-utils.js"></script>
   <script src="explore-url-editor.js"></script>
