@@ -779,8 +779,8 @@ function renderFields() {
       ` : ''}
       ${fieldState === 'selected' && (fieldData.rawSelector || (fieldData.state === 'manual' && fieldData.value)) ? `
         <div class="selector-info">
-          <span class="selector-label">${fieldData.state === 'manual' ? '规则' : '选择器'}:</span>
-          <code class="selector-value">${escapeHtml(fieldData.state === 'manual' ? fieldData.value : fieldData.rawSelector)}</code>
+          <span class="selector-label">规则:</span>
+          <code class="selector-value">${escapeHtml(fieldData.value || fieldData.rawSelector || '')}</code>
         </div>
         ${filteredPreviews && filteredPreviews.length > 0 ? `
           <div class="preview-section">
@@ -789,15 +789,17 @@ function renderFields() {
               预览 (${filteredPreviews.length} 个匹配)
             </div>
             <div class="preview-list hidden">
-              ${filteredPreviews.map((p, i) => `
+              ${filteredPreviews.map((p, i) => {
+                const ep = applyPreviewExtraction(p, fieldData.value);
+                return `
                 <div class="preview-item">
                   <div class="preview-item-header">
                     <span class="preview-index">#${i + 1}</span>
-                    <span class="preview-text">${escapeHtml(p.text.substring(0, 80))}${p.text.length > 80 ? '...' : ''}</span>
+                    <span class="preview-text">${escapeHtml((ep.text || '').substring(0, 80))}${(ep.text || '').length > 80 ? '...' : ''}</span>
                   </div>
-                  <div class="preview-html"><pre class="preview-code">${escapeHtml(p.html)}</pre></div>
-                </div>
-              `).join('')}
+                  ${ep.html ? `<div class="preview-html"><pre class="preview-code">${escapeHtml(ep.html)}</pre></div>` : ''}
+                </div>`;
+              }).join('')}
             </div>
           </div>
         ` : ''}
@@ -1326,25 +1328,100 @@ function handleIndexApply() {
   renderFieldStatusSummary();
 }
 
+/**
+ * Apply rule extraction to a preview item based on the rule's @suffix.
+ * Generic: @text, @ownText, @textNodes, @html, @outerHtml, @all, @href, @src, @data-*, etc.
+ */
+function applyPreviewExtraction(p, ruleValue) {
+  if (!ruleValue || typeof ruleValue !== 'string') return p;
+  if (ruleValue.includes('<js>')) return p;
+
+  const atMatch = ruleValue.match(/@(\w+)$/);
+  if (!atMatch) return p;
+
+  const attr = atMatch[1];
+  const html = p.html || '';
+  if (!html) return p;
+
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const el = tmp.firstElementChild;
+  if (!el) return p;
+
+  let extracted;
+
+  switch (attr) {
+    case 'text':
+      extracted = el.textContent;
+      break;
+    case 'ownText':
+      // Element's own text, excluding children's text
+      extracted = Array.from(el.childNodes)
+        .filter(n => n.nodeType === Node.TEXT_NODE)
+        .map(n => n.textContent)
+        .join('');
+      break;
+    case 'textNodes':
+      // Direct text child nodes, joined with newline
+      extracted = Array.from(el.childNodes)
+        .filter(n => n.nodeType === Node.TEXT_NODE)
+        .map(n => n.textContent.trim())
+        .filter(Boolean)
+        .join('\n');
+      break;
+    case 'html':
+      extracted = el.innerHTML;
+      break;
+    case 'outerHtml':
+      extracted = el.outerHTML;
+      break;
+    case 'all':
+      // All text including children, same as text
+      extracted = el.textContent;
+      break;
+    default:
+      // Any attribute: href, src, data-*, id, class, etc.
+      extracted = el.getAttribute(attr);
+      if (extracted == null) {
+        // Fallback: try child element's attribute (e.g., a inside div for @href)
+        const child = el.querySelector(`[${attr}]`);
+        extracted = child ? child.getAttribute(attr) : null;
+      }
+      break;
+  }
+
+  if (extracted == null) return { text: p.text + ` [无${attr}]`, html: p.html };
+  return { text: String(extracted).trim(), html: p.html };
+}
+
 function filterPreviewsByIndex(previews, index, isListField) {
   if (!previews || !previews.length) return previews;
+
+  const isGrouped = Array.isArray(previews[0]);
 
   if (!isListField) {
     if (index.single !== undefined && index.single !== '') {
       const i = parseInt(index.single, 10) - 1;
+      if (isGrouped) {
+        // Pick the i-th element from each group, placeholder if missing
+        const placeholder = { text: '', html: '' };
+        return previews.map(group => (i >= 0 && i < group.length) ? group[i] : placeholder);
+      }
       if (i >= 0 && i < previews.length) {
         return [previews[i]];
       }
       return [];
     }
-    return previews;
+    return isGrouped ? previews.flat() : previews;
   }
 
+  // List field: flat array, slice by range
+  const flat = isGrouped ? previews.flat() : previews;
   const start = index.start ? parseInt(index.start, 10) : 0;
-  const end = index.end ? parseInt(index.end, 10) : previews.length;
-  const s = start < 0 ? previews.length + start : Math.max(0, start - 1);
-  const e = end < 0 ? previews.length + end + 1 : Math.min(previews.length, end);
-  return previews.slice(s, e);
+  const end = index.end ? parseInt(index.end, 10) : flat.length;
+  const s = start < 0 ? flat.length + start : Math.max(0, start - 1);
+  const e = end < 0 ? flat.length + end + 1 : Math.min(flat.length, end);
+  return flat.slice(s, e);
 }
 
 function handleFieldInput(e) {

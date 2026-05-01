@@ -63,7 +63,7 @@ function assertEqual(actual, expected, msg) {
 }
 
 // ─── List field tests ───
-console.log('\n📋 List field tests');
+console.log('\nList field tests');
 
 assertEqual(
   buildNativeIndexRule('div.item', 'bookList', { listIndex: {} }, true),

@@ -912,6 +912,7 @@ body {
   display: flex;
   flex-direction: column;
   animation: modal-slide-in 0.2s ease;
+  overflow: hidden;
 }
 
 @keyframes modal-slide-in {
@@ -924,6 +925,14 @@ body {
   font-weight: 600;
   margin-bottom: 12px;
   color: var(--text);
+}
+
+.lazy-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 -20px;
+  padding: 0 20px;
 }
 
 .modal-content textarea.input--json {
@@ -980,6 +989,8 @@ body {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+  flex-shrink: 0;
+  margin-top: 12px;
 }
 
 /* ── Scrollbar ──────────────────────────── */

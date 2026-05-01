@@ -341,17 +341,29 @@
     sendElementInfo(next);
   }
 
-  function collectPreviews(selector, maxCount) {
+  function collectPreviews(selector, maxCount, listItemSelector) {
     try {
+      const mkItem = (el) => ({
+        text: el.textContent ? el.textContent.trim().replace(/\s+/g, ' ').substring(0, 150) : '',
+        html: el.outerHTML,
+      });
+
+      if (listItemSelector) {
+        // Group elements by parent list item: [[item1_matches...], [item2_matches...], ...]
+        const listItems = document.querySelectorAll(listItemSelector);
+        const groups = [];
+        for (const item of listItems) {
+          const els = item.querySelectorAll(selector);
+          groups.push(Array.from(els).map(mkItem));
+        }
+        return groups;
+      }
+
       const elements = document.querySelectorAll(selector);
       const limit = Math.min(maxCount || elements.length, 50);
       const results = [];
       for (let i = 0; i < limit; i++) {
-        const el = elements[i];
-        results.push({
-          text: el.textContent ? el.textContent.trim().replace(/\s+/g, ' ').substring(0, 150) : '',
-          html: el.outerHTML,
-        });
+        results.push(mkItem(elements[i]));
       }
       return results;
     } catch (e) {
@@ -511,7 +523,7 @@
       warnings.push(contextCheck.warning);
     }
 
-    const previews = collectPreviews(selector, matchCount);
+    const previews = collectPreviews(selector, matchCount, listItemSelector);
 
     safeSendMessage({
       action: 'selectorSelected',
