@@ -1743,7 +1743,7 @@ function fetchLatestTagFromGitHub() {
 }
 
 function generateLazyLoadScript() {
-  const selector = document.getElementById('lazySelector').value.trim() || '.read-content';
+  const selector = document.getElementById('lazySelector').value.trim();
   const checkTarget = document.getElementById('lazyCheckTarget').value;
   const expectPattern = document.getElementById('lazyExpect').value.trim();
   const rejectPattern = document.getElementById('lazyReject').value.trim();

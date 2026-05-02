@@ -105,6 +105,12 @@ textarea.input {
   flex: none;
 }
 
+/* ── Select ─────────────────────────────── */
+
+select.input {
+  cursor: pointer;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
