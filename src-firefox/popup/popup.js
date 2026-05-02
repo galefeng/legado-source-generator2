@@ -68,7 +68,7 @@ const RULE_TYPES = {
   },
 };
 
-let state = {
+const DEFAULT_STATE = Object.freeze({
   activeMode: 'basic',
   activeRuleType: 'search',
   rules: {
@@ -89,7 +89,9 @@ let state = {
   headerItems: [],
   bookSourceComment: '',
   loginCheckJs: '',
-};
+});
+
+let state = structuredClone(DEFAULT_STATE);
 
 const CF_LOGIN_CHECK_JS = `var resultUrl = result.url();
 var resultCode = result.code();
@@ -1803,41 +1805,34 @@ function closeModal() {
 function handleReset() {
   if (!confirm('确定要重置所有进度吗？')) return;
 
-  state.rules = {
-    explore: { currentStep: 0, fields: {}, fieldStates: {}, bookListSelector: null },
-    search: { currentStep: 0, fields: {}, fieldStates: {}, bookListSelector: null },
-    bookInfo: { currentStep: 0, fields: {}, fieldStates: {}, bookListSelector: null },
-    toc: { currentStep: 0, fields: {}, fieldStates: {}, bookListSelector: null },
-    content: { currentStep: 0, fields: {}, fieldStates: {}, bookListSelector: null },
-  };
-  state.activeRuleType = 'search';
-  state.exploreUrl = '';
-  state.searchUrl = '';
-  state.searchConfig = null;
-  state.bookSourceType = 0;
-  state.bookSourceName = '';
-  state.bookSourceUrl = '';
-  state.bookSourceComment = '';
-  state.loginCheckJs = '';
+  // Reset state from default — single source of truth, no manual field sync needed
+  state = structuredClone(DEFAULT_STATE);
 
   chrome.storage.local.remove(['legadoSourceState', 'exploreEditorState']);
 
+  // Reset DOM elements
   document.getElementById('bookSourceName').value = '';
   document.getElementById('bookSourceUrl').value = '';
   document.getElementById('bookSourceComment').value = '';
   document.getElementById('loginCheckJs').value = '';
   const contentTypeSelect = document.getElementById('bookSourceTypeSelect');
   if (contentTypeSelect) contentTypeSelect.value = '0';
+  const bookUrlPatternEl = document.getElementById('bookUrlPattern');
+  if (bookUrlPatternEl) bookUrlPatternEl.value = '';
   document.getElementById('searchUrlTemplate').value = '';
   document.getElementById('searchMethod').value = 'GET';
   document.getElementById('searchCharset').value = '';
   document.getElementById('searchWebView').value = 'false';
   document.getElementById('searchBodyTemplate').value = '';
 
+  renderHeaderItems();
+
   if (typeof window.clearExploreEditor === 'function') {
     window.clearExploreEditor();
   }
 
+  renderModeTabs();
+  updateEditorVisibility();
   renderRuleTypeTabs();
   updateStepIndicator();
   renderFields();
