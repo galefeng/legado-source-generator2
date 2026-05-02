@@ -147,8 +147,13 @@
       </div>
 
       <div class="advanced-section">
-        <label class="advanced-label">源域名</label>
+        <label class="advanced-label">源URL</label>
         <textarea id="bookSourceUrl" placeholder="源URL" class="input input--sans" rows="1"></textarea>
+      </div>
+
+      <div class="advanced-section">
+        <label class="advanced-label">书籍URL正则</label>
+        <textarea id="bookUrlPattern" placeholder="书籍URL正则表达式" class="input input--sans" rows="1"></textarea>
       </div>
 
       <div class="advanced-section">
@@ -170,15 +175,15 @@
 
       <div class="advanced-section">
         <div class="advanced-section-head">
-          <label class="advanced-label">登录校验</label>
+          <label class="advanced-label">登录检查JS</label>
           <button id="autoFillCfBtn" class="btn btn-action btn-sm" type="button">过CF盾</button>
         </div>
-        <textarea id="loginCheckJs" class="input" rows="1" placeholder="JS 登录校验脚本"></textarea>
+        <textarea id="loginCheckJs" class="input" rows="1" placeholder="登录检查JS脚本"></textarea>
       </div>
     </div>
 
     <div class="step-indicator">
-      <span id="stepText">1/9: 书籍列表容器</span>
+      <span id="stepText">1/9: 书籍列表</span>
       <div id="fieldStatusSummary" class="field-status-summary"></div>
     </div>
 

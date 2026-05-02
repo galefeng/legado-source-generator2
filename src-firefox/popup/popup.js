@@ -4,7 +4,7 @@ const RULE_TYPES = {
   explore: {
     label: '发现页',
     fields: [
-      { key: 'bookList', label: '书籍列表容器', required: true },
+      { key: 'bookList', label: '书籍列表', required: true },
       { key: 'name', label: '书名', required: true },
       { key: 'author', label: '作者', required: false },
       { key: 'kind', label: '分类', required: false },
@@ -12,13 +12,13 @@ const RULE_TYPES = {
       { key: 'lastChapter', label: '最新章节', required: false },
       { key: 'intro', label: '简介', required: false },
       { key: 'coverUrl', label: '封面URL', required: false },
-      { key: 'bookUrl', label: '书籍链接', required: true },
+      { key: 'bookUrl', label: '详情页URL', required: true },
     ],
   },
   search: {
     label: '搜索页',
     fields: [
-      { key: 'bookList', label: '搜索结果列表', required: true },
+      { key: 'bookList', label: '书籍列表', required: true },
       { key: 'name', label: '书名', required: true },
       { key: 'author', label: '作者', required: false },
       { key: 'kind', label: '分类', required: false },
@@ -26,7 +26,7 @@ const RULE_TYPES = {
       { key: 'lastChapter', label: '最新章节', required: false },
       { key: 'intro', label: '简介', required: false },
       { key: 'coverUrl', label: '封面URL', required: false },
-      { key: 'bookUrl', label: '书籍链接', required: true },
+      { key: 'bookUrl', label: '详情页URL', required: true },
       { key: 'checkKeyWord', label: '校验关键词', required: false },
     ],
   },
@@ -46,7 +46,7 @@ const RULE_TYPES = {
   toc: {
     label: '目录页',
     fields: [
-      { key: 'chapterList', label: '章节列表容器', required: true },
+      { key: 'chapterList', label: '目录列表', required: true },
       { key: 'chapterName', label: '章节名称', required: true },
       { key: 'chapterUrl', label: '章节链接', required: true },
       { key: 'isVolume', label: '卷名标识', required: false },
@@ -83,6 +83,7 @@ let state = {
   bookSourceType: 0,
   bookSourceName: '',
   bookSourceUrl: '',
+  bookUrlPattern: '',
   // Captured search configuration
   searchConfig: null, // { method, url, charset, body, pageTemplate }
   headerItems: [],
@@ -221,6 +222,9 @@ function loadState() {
       const loginCheckJsEl = document.getElementById('loginCheckJs');
       if (loginCheckJsEl) loginCheckJsEl.value = state.loginCheckJs || '';
 
+      const bookUrlPatternEl = document.getElementById('bookUrlPattern');
+      if (bookUrlPatternEl) bookUrlPatternEl.value = state.bookUrlPattern || '';
+
       const bookCommentEl = document.getElementById('bookSourceComment');
       if (bookCommentEl) bookCommentEl.value = state.bookSourceComment || '';
 
@@ -329,6 +333,7 @@ function saveState() {
   state.headerItems = collectHeaderItemsFromDom();
   const loginCheckJsEl = document.getElementById('loginCheckJs');
   state.loginCheckJs = loginCheckJsEl ? loginCheckJsEl.value : '';
+  state.bookUrlPattern = document.getElementById('bookUrlPattern')?.value || '';
   state.bookSourceComment = document.getElementById('bookSourceComment')?.value || '';
   chrome.storage.local.set({ legadoSourceState: state });
 }
@@ -1440,6 +1445,7 @@ function handleAutoFill() {
     const tab = tabs[0];
     const nameEl = document.getElementById('bookSourceName');
     const urlEl = document.getElementById('bookSourceUrl');
+    const patternEl = document.getElementById('bookUrlPattern');
 
     if (nameEl) nameEl.value = tab.title || '';
     if (urlEl) {
@@ -1450,9 +1456,26 @@ function handleAutoFill() {
         urlEl.value = tab.url || '';
       }
     }
+    if (patternEl) {
+      try {
+        const url = new URL(tab.url);
+        // 提取顶级域名部分，生成正则表达式
+        // 例如: https://www.pixiv.net/... -> (https?://)?(www\.)?pixiv\.net
+        const hostname = url.hostname;
+        // 移除 www. 前缀（如果存在）
+        const domain = hostname.replace(/^www\./, '');
+        // 转义点号
+        const escapedDomain = domain.replace(/\./g, '\\.');
+        // 生成正则表达式：可选的协议前缀 + 可选的www. + 域名
+        patternEl.value = `(https?://)?(www\\.)?${escapedDomain}`;
+      } catch {
+        patternEl.value = '';
+      }
+    }
 
     autoResizeTextarea(nameEl);
     autoResizeTextarea(urlEl);
+    autoResizeTextarea(patternEl);
     saveState();
   });
 }
@@ -1669,6 +1692,7 @@ function generateJson() {
     ruleExplore: buildRuleSection('explore'),
     bookSourceType: Number(state.bookSourceType) || 0,
     bookSourceUrl: (state.bookSourceUrl || '').trim(),
+    bookUrlPattern: (state.bookUrlPattern || '').trim(),
     bookSourceName: (state.bookSourceName || '').trim(),
     searchUrl: state.searchUrl || '',
     exploreUrl: exploreUrlValue,

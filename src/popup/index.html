@@ -147,8 +147,13 @@
       </div>
 
       <div class="advanced-section">
-        <label class="advanced-label">源域名</label>
+        <label class="advanced-label">源URL</label>
         <textarea id="bookSourceUrl" placeholder="源URL" class="input input--sans" rows="1"></textarea>
+      </div>
+
+      <div class="advanced-section">
+        <label class="advanced-label">书籍URL正则</label>
+        <textarea id="bookUrlPattern" placeholder="书籍URL正则表达式" class="input input--sans" rows="1"></textarea>
       </div>
 
       <div class="advanced-section">
@@ -170,10 +175,10 @@
 
       <div class="advanced-section">
         <div class="advanced-section-head">
-          <label class="advanced-label">登录校验</label>
+          <label class="advanced-label">登录检查JS</label>
           <button id="autoFillCfBtn" class="btn btn-action btn-sm" type="button">过CF盾</button>
         </div>
-        <textarea id="loginCheckJs" class="input" rows="1" placeholder="JS 登录校验脚本"></textarea>
+        <textarea id="loginCheckJs" class="input" rows="1" placeholder="登录检查JS脚本"></textarea>
       </div>
     </div>
 
@@ -213,7 +218,7 @@
     </div>
 
     <div class="step-indicator">
-      <span id="stepText">1/9: 书籍列表容器</span>
+      <span id="stepText">1/9: 书籍列表</span>
       <div id="fieldStatusSummary" class="field-status-summary"></div>
     </div>
 
@@ -291,7 +296,7 @@
           <p><strong>webView 的作用</strong><br>很多网站内容是动态加载的。不开 webView 时，规则可能抓不到最终页面内容。开了 webView，相当于“让页面先跑起来再抓”。</p>
           <p><strong>什么时候建议开</strong><br>规则看起来没错，但结果一直空。<br>目录页、正文页总是抓不到。<br>下一页链接存在，但翻页不生效。<br>某字段不开拿不到，开了马上正常。</p>
           <p><strong>什么时候不要开</strong><br>已经能正常抓到，就不要开。<br>全字段都开会变慢，优先只开有问题的字段。</p>
-          <p><strong>新手推荐顺序</strong><br>先全部不开，先调规则。<br>哪个字段有问题，只给哪个字段开 webView。<br>常见优先尝试字段：书籍链接、目录链接、章节链接、下一页链接。</p>
+          <p><strong>新手推荐顺序</strong><br>先全部不开，先调规则。<br>哪个字段有问题，只给哪个字段开 webView。</p>
           <p><strong>一句话结论</strong><br>能不开就不开，出问题再精准开启。</p>
         </div>
         <div class="modal-actions">
