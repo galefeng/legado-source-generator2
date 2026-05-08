@@ -330,8 +330,8 @@
     const originalTarget = form.getAttribute('target');
     form.setAttribute('target', '_blank');
     try {
-      // 使用 form.submit() 直接提交，不触发 submit 事件，避免递归调用 interceptFormSubmits
-      form.submit();
+      // 使用 HTMLFormElement.prototype.submit 避免 name="submit" 的元素遮蔽
+      HTMLFormElement.prototype.submit.call(form);
     } finally {
       if (originalTarget === null) {
         form.removeAttribute('target');
@@ -411,10 +411,31 @@
       }
 
       // It's a form
-      // Mark that the click handler has processed this form.
-      // The actual submission will be handled by interceptFormSubmits (for standard submit)
-      // or by URL polling (for JS-driven navigation like window.location.href).
       clickHandlerProcessedForm = true;
+
+      // When the button type won't trigger natural form submission (type="button" / "reset"),
+      // the interceptFormSubmits handler will never fire. Proactively detect JS-driven
+      // navigation (e.g. document.location.href) via a microtask that runs right after
+      // the button's own onclick handler.
+      const btnTag = searchButton.tagName;
+      const btnType = (searchButton.getAttribute('type') || '').toLowerCase();
+      const isNonSubmitButton = (btnTag === 'BUTTON' && (btnType === 'button' || btnType === 'reset'))
+        || (btnTag === 'INPUT' && (btnType === 'button' || btnType === 'reset'));
+
+      if (isNonSubmitButton) {
+        const urlBefore = window.location.href;
+        const captureCharset = detectPageCharset();
+        const captureForms = detectSearchForms();
+        Promise.resolve().then(() => {
+          if (!captureActive || !clickHandlerProcessedForm) return;
+          if (window.location.href !== urlBefore) {
+            clickHandlerProcessedForm = false;
+            const urlWithPlaceholder = replaceKeywordInCapturedUrl(window.location.href, captureCharset);
+            console.log('[search-capture] Captured JS-driven navigation:', urlWithPlaceholder);
+            sendCapturedData('GET', urlWithPlaceholder, '', captureCharset, captureForms);
+          }
+        });
+      }
 
       console.log('[search-capture] Form click captured, letting natural submission proceed');
     };
