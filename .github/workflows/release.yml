@@ -115,8 +115,9 @@ jobs:
           echo "Using Gitee repository: ${OWNER}/${REPO}"
 
           REPO_CHECK_RESPONSE=$(mktemp)
-          REPO_CHECK_STATUS=$(curl -s -o "$REPO_CHECK_RESPONSE" -w "%{http_code}" \
-            "${GITEE_API}?access_token=${GITEE_TOKEN}")
+          REPO_CHECK_STATUS=$(curl -sS --retry 3 --retry-delay 5 --connect-timeout 30 \
+            -o "$REPO_CHECK_RESPONSE" -w "%{http_code}" \
+            "${GITEE_API}?access_token=${GITEE_TOKEN}" || echo "000")
 
           if [ "$REPO_CHECK_STATUS" != "200" ]; then
             echo "Failed to access Gitee repository ${OWNER}/${REPO} (HTTP ${REPO_CHECK_STATUS})."
@@ -164,7 +165,8 @@ jobs:
 
           # 4. 创建 Gitee Release
           CREATE_RELEASE_RESPONSE=$(mktemp)
-          CREATE_RELEASE_STATUS=$(curl -s -o "$CREATE_RELEASE_RESPONSE" -w "%{http_code}" -X POST \
+          CREATE_RELEASE_STATUS=$(curl -sS --retry 3 --retry-delay 5 --connect-timeout 30 \
+            -o "$CREATE_RELEASE_RESPONSE" -w "%{http_code}" -X POST \
             "${GITEE_API}/releases" \
             -H "Content-Type: application/json" \
             -d "{
@@ -174,7 +176,7 @@ jobs:
               \"name\": \"${RELEASE_NAME}\",
               \"body\": $(echo "$RELEASE_BODY" | jq -sR .),
               \"prerelease\": ${IS_PRERELEASE}
-            }")
+            }" || echo "000")
 
           if [ "$CREATE_RELEASE_STATUS" != "201" ]; then
             echo "Failed to create Gitee release ${TAG_NAME} (HTTP ${CREATE_RELEASE_STATUS})."

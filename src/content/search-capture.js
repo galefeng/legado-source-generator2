@@ -410,29 +410,21 @@
       // It's a form
       clickHandlerProcessedForm = true;
 
-      // When the button type won't trigger natural form submission (type="button" / "reset"),
-      // the interceptFormSubmits handler will never fire. Proactively detect JS-driven
-      // navigation (e.g. document.location.href) via a microtask that runs right after
-      // the button's own onclick handler.
-      const btnTag = searchButton.tagName;
-      const btnType = (searchButton.getAttribute('type') || '').toLowerCase();
-      const isNonSubmitButton = (btnTag === 'BUTTON' && (btnType === 'button' || btnType === 'reset'))
-        || (btnTag === 'INPUT' && (btnType === 'button' || btnType === 'reset'));
-
-      if (isNonSubmitButton) {
-        const urlBefore = window.location.href;
-        const captureCharset = detectPageCharset();
-        const captureForms = detectSearchForms();
-        Promise.resolve().then(() => {
-          if (!captureActive || !clickHandlerProcessedForm) return;
-          if (window.location.href !== urlBefore) {
-            clickHandlerProcessedForm = false;
-            const urlWithPlaceholder = replaceKeywordInCapturedUrl(window.location.href, captureCharset);
-            console.log('[search-capture] Captured JS-driven navigation:', urlWithPlaceholder);
-            sendCapturedData('GET', urlWithPlaceholder, '', captureCharset, captureForms);
-          }
-        });
-      }
+      // Schedule a microtask to detect JS-driven URL changes after onclick/onsubmit
+      // handlers run. This captures the real URL for sites that use window.location.href
+      // instead of native form submission (e.g. cuoceng.com's handleSearch).
+      const urlBefore = window.location.href;
+      const captureCharset = detectPageCharset();
+      const captureForms = detectSearchForms();
+      Promise.resolve().then(() => {
+        if (!captureActive || !clickHandlerProcessedForm) return;
+        if (window.location.href !== urlBefore) {
+          clickHandlerProcessedForm = false;
+          const urlWithPlaceholder = replaceKeywordInCapturedUrl(window.location.href, captureCharset);
+          console.log('[search-capture] Captured JS-driven navigation:', urlWithPlaceholder);
+          sendCapturedData('GET', urlWithPlaceholder, '', captureCharset, captureForms);
+        }
+      });
 
       console.log('[search-capture] Form click captured, letting natural submission proceed');
     };
@@ -514,7 +506,6 @@
       if (!form || form.tagName !== 'FORM') return;
 
       if (!clickHandlerProcessedForm) return;
-      clickHandlerProcessedForm = false;
 
       const action = form.getAttribute('action') || form.action || window.location.href;
       const method = (form.getAttribute('method') || 'GET').toUpperCase();
@@ -531,8 +522,9 @@
       const forms = detectSearchForms();
 
       if (method === 'POST') {
+        clickHandlerProcessedForm = false;
+
         // POST: capture data and let the form submit naturally.
-        // The page will navigate away — no need to restore inputs.
         captureActive = false;
         restoreOriginals();
         stopUrlPolling();
@@ -547,25 +539,35 @@
         });
         // Don't prevent default — form submits with filled value.
       } else {
-        // GET: prevent default navigation, then use form.submit() to open in a new tab.
-        // form.submit() does NOT fire a submit event, so it won't recursively trigger this handler.
-        e.preventDefault();
-        e.stopImmediatePropagation();
+        // GET
+        const hasOnsubmit = form.hasAttribute('onsubmit') || typeof form.onsubmit === 'function';
 
-        submitFormAsGetInNewTab(form);
+        if (hasOnsubmit) {
+          // Form has JS onsubmit that may override the URL (e.g. cuoceng.com handleSearch).
+          // Let the onsubmit run — the microtask in interceptSearchButtonClick will capture
+          // the actual URL from window.location.href.
+          // Don't reset clickHandlerProcessedForm or call preventDefault.
+        } else {
+          clickHandlerProcessedForm = false;
 
-        captureActive = false;
-        restoreOriginals();
-        stopUrlPolling();
+          // Standard GET form: prevent default, submit to new tab instead.
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          submitFormAsGetInNewTab(form);
 
-        chrome.runtime.sendMessage({
-          action: 'searchCaptured',
-          method,
-          url: urlWithPlaceholder,
-          charset,
-          body: bodyWithPlaceholder,
-          forms,
-        });
+          captureActive = false;
+          restoreOriginals();
+          stopUrlPolling();
+
+          chrome.runtime.sendMessage({
+            action: 'searchCaptured',
+            method,
+            url: urlWithPlaceholder,
+            charset,
+            body: bodyWithPlaceholder,
+            forms,
+          });
+        }
       }
     };
 
