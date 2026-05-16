@@ -500,8 +500,19 @@ function renderFields() {
   const isNativeListField = ['bookList', 'chapterList'].includes(field.key);
   const isPickerListField = isNativeListField;
   const fieldIndex = fieldData.listIndex || {};
+
+  // Get list field's index range for non-list fields so they respect the list range
+  let listIndexRange = null;
+  if (!isPickerListField) {
+    const listFields = fields.filter(f => ['bookList', 'chapterList'].includes(f.key));
+    if (listFields.length > 0) {
+      const listFieldData = rule.fields[listFields[0].key] || {};
+      listIndexRange = listFieldData.listIndex || null;
+    }
+  }
+
   const filteredPreviews = fieldData.previews
-    ? filterPreviewsByIndex(fieldData.previews, fieldIndex, isPickerListField)
+    ? filterPreviewsByIndex(fieldData.previews, fieldIndex, isPickerListField, listIndexRange)
     : fieldData.previews;
 
   const useJsIndex = fieldData.useJsIndex || false;
@@ -769,7 +780,7 @@ function handleSelectElement() {
 
   const nativeListFields = ['bookList', 'chapterList'];
   const isListField = nativeListFields.includes(field.key);
-  const isPageScopedList = ['explore', 'search'].includes(state.activeRuleType);
+  const isPageScopedList = ['explore', 'search', 'toc'].includes(state.activeRuleType);
 
   if (!isListField && isPageScopedList && !rule.bookListSelector) {
     return;
@@ -1206,24 +1217,34 @@ function applyPreviewExtraction(p, ruleValue) {
   return { text: String(extracted).trim(), html: p.html };
 }
 
-function filterPreviewsByIndex(previews, index, isListField) {
+function filterPreviewsByIndex(previews, index, isListField, listRange) {
   if (!previews || !previews.length) return previews;
 
   const isGrouped = Array.isArray(previews[0]);
 
   if (!isListField) {
+    // If list field has an index range, slice groups before applying single index
+    let groups = previews;
+    if (listRange && (listRange.start || listRange.end)) {
+      const ls = listRange.start ? parseInt(listRange.start, 10) : 0;
+      const le = listRange.end ? parseInt(listRange.end, 10) : groups.length;
+      const gs = ls < 0 ? groups.length + ls : Math.max(0, ls - 1);
+      const ge = le < 0 ? groups.length + le + 1 : Math.min(groups.length, le);
+      groups = groups.slice(gs, ge);
+    }
+
     if (index.single !== undefined && index.single !== '') {
       const i = parseInt(index.single, 10) - 1;
       if (isGrouped) {
         const placeholder = { text: '', html: '' };
-        return previews.map(group => (i >= 0 && i < group.length) ? group[i] : placeholder);
+        return groups.map(group => (i >= 0 && i < group.length) ? group[i] : placeholder);
       }
-      if (i >= 0 && i < previews.length) {
-        return [previews[i]];
+      if (i >= 0 && i < groups.length) {
+        return [groups[i]];
       }
       return [];
     }
-    return isGrouped ? previews.flat() : previews;
+    return isGrouped ? groups.flat() : groups;
   }
 
   // List field: flat array, slice by range
