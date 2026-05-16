@@ -360,7 +360,7 @@
       }
 
       const elements = document.querySelectorAll(selector);
-      const limit = Math.min(maxCount || elements.length, 50);
+      const limit = maxCount || elements.length;
       const results = [];
       for (let i = 0; i < limit; i++) {
         results.push(mkItem(elements[i]));
@@ -772,7 +772,7 @@
           const previewSelector = message.selector;
           const previewElements = document.querySelectorAll(previewSelector);
           const previewCount = previewElements.length;
-          const previewLimit = Math.min(previewCount, 50);
+          const previewLimit = previewCount;
           const previewResults = [];
           for (let i = 0; i < previewLimit; i++) {
             const el = previewElements[i];
