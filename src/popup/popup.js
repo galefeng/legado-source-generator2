@@ -589,13 +589,23 @@ function buildNativeIndexRule(baseSelector, fieldKey, fieldData, isListField) {
   // Non-list field: single index
   const singleVal = fieldData.listIndex?.single ? parseInt(fieldData.listIndex.single, 10) : 0;
   const tagName = fieldData.tagName || '';
+  const listItemTag = fieldData.listItemTagName || '';
+
+  const linkFields = ['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'];
+  if (listItemTag === 'a' && linkFields.includes(fieldKey)) {
+    if (!singleVal || isNaN(singleVal) || singleVal === 0) {
+      return 'a@href';
+    }
+    const index = singleVal > 0 ? singleVal - 1 : singleVal;
+    return `a.${index}@href`;
+  }
 
   if (!singleVal || isNaN(singleVal) || singleVal === 0) {
-    return buildAtSelector(baseSelector, fieldKey, tagName);
+    return buildAtSelector(baseSelector, fieldKey, tagName, listItemTag);
   }
 
   const index = singleVal > 0 ? singleVal - 1 : singleVal;
-  const atPart = buildAtSelector('', fieldKey, tagName);
+  const atPart = buildAtSelector('', fieldKey, tagName, listItemTag);
   return `${baseSelector}.${index}${atPart}`;
 }
 
@@ -1307,12 +1317,15 @@ function handleIndexApply() {
     } else {
       const singleVal = fieldData.listIndex.single ? parseInt(fieldData.listIndex.single, 10) : 0;
       const selectedTag = fieldData.tagName || '';
+      const listItemTag = fieldData.listItemTagName || '';
 
       let jsCode;
       if (singleVal !== 0) {
         const index = singleVal > 0 ? singleVal - 1 : singleVal;
         let returnExpr;
-        if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) {
+        if (listItemTag === 'a' && ['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) {
+          returnExpr = `String(list.get(${index}).attr("href"))`;
+        } else if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) {
           returnExpr = `String(list.get(${index}).attr("href"))`;
         } else if (field.key === 'coverUrl') {
           returnExpr = `String(list.get(${index}).attr("src"))`;
@@ -1320,13 +1333,15 @@ function handleIndexApply() {
           returnExpr = `String(list.get(${index}).text())`;
         }
 
+        const docSelector = (listItemTag === 'a' && ['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) ? 'a' : baseSelector;
+
         jsCode = buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
-    var list = doc.select("${baseSelector}");
+    var list = doc.select("${docSelector}");
     var index = ${index};
     return ${returnExpr};`);
       } else {
         if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) {
-          jsCode = selectedTag === 'a' ? baseSelector + '@href' : baseSelector + ' a@href';
+          jsCode = listItemTag === 'a' ? 'a@href' : (selectedTag === 'a' ? baseSelector + '@href' : baseSelector + ' a@href');
         } else if (field.key === 'coverUrl') {
           jsCode = selectedTag === 'img' ? baseSelector + '@src' : baseSelector + ' img@src';
         } else {
@@ -1367,6 +1382,7 @@ function applyPreviewExtraction(p, ruleValue) {
   if (!el) return p;
 
   let extracted;
+  let sourceHtml = p.html;
 
   switch (attr) {
     case 'text':
@@ -1403,13 +1419,26 @@ function applyPreviewExtraction(p, ruleValue) {
       if (extracted == null) {
         // Fallback: try child element's attribute (e.g., a inside div for @href)
         const child = el.querySelector(`[${attr}]`);
-        extracted = child ? child.getAttribute(attr) : null;
+        if (child) {
+          extracted = child.getAttribute(attr);
+          if (extracted != null) sourceHtml = child.outerHTML;
+        }
+      }
+      if (extracted == null && p.listHtml) {
+        // Fallback: try list item's attribute (e.g., <a> wraps clicked <dd>)
+        const listTmp = document.createElement('div');
+        listTmp.innerHTML = p.listHtml;
+        const listEl = listTmp.firstElementChild;
+        if (listEl) {
+          extracted = listEl.getAttribute(attr);
+          if (extracted != null) sourceHtml = p.listHtml;
+        }
       }
       break;
   }
 
   if (extracted == null) return { text: p.text + ` [无${attr}]`, html: p.html };
-  return { text: String(extracted).trim(), html: p.html };
+  return { text: String(extracted).trim(), html: sourceHtml };
 }
 
 function filterPreviewsByIndex(previews, index, isListField, listRange) {
@@ -2135,10 +2164,10 @@ window.togglePreviews = function(header) {
 };
 
 // Helper: build @ selector with smart attribute detection
-function buildAtSelector(sel, key, tag) {
+function buildAtSelector(sel, key, tag, listItemTag) {
   const linkFields = ['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'];
   if (linkFields.includes(key)) {
-    // If the selected element is already a link, use it directly
+    if (listItemTag === 'a') return 'a@href';
     return tag === 'a' ? sel + '@href' : sel + ' a@href';
   } else if (key === 'coverUrl') {
     return tag === 'img' ? sel + '@src' : sel + ' img@src';
@@ -2147,7 +2176,7 @@ function buildAtSelector(sel, key, tag) {
   }
 }
 
-function toLegadoRule(selector, fieldKey, fieldData, tagName) {
+function toLegadoRule(selector, fieldKey, fieldData, tagName, listItemTag) {
   const listFields = ['bookList', 'chapterList'];
   const isListField = listFields.includes(fieldKey);
 
@@ -2161,7 +2190,7 @@ function toLegadoRule(selector, fieldKey, fieldData, tagName) {
     if (isListField) {
       return selector;
     }
-    return buildAtSelector(selector, fieldKey, tagName);
+    return buildAtSelector(selector, fieldKey, tagName, listItemTag);
   }
 
   // Has index: generate JS code
@@ -2175,9 +2204,6 @@ function toLegadoRule(selector, fieldKey, fieldData, tagName) {
   }
 
   if (isListField) {
-    // Note: List fields (bookList/chapterList) typically don't reach here because
-    // they usually go through handleIndexApply() after index input.
-    // This branch exists as defensive coding for edge cases.
     return selector;
   }
 
@@ -2186,13 +2212,18 @@ function toLegadoRule(selector, fieldKey, fieldData, tagName) {
 
   // If index is 0 (default), no need to generate JS - return selector with @ suffix
   if (index === 0) {
-    return buildAtSelector(selector, fieldKey, tagName);
+    return buildAtSelector(selector, fieldKey, tagName, listItemTag);
   }
 
   if (fieldData.useJsIndex) {
     let returnExpr;
     const linkFields = ['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'];
     if (linkFields.includes(fieldKey)) {
+      if (listItemTag === 'a') {
+        returnExpr = `String(doc.select("a").get(${index}).attr("href"))`;
+        return buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
+    return ${returnExpr};`);
+      }
       const childSel = tagName === 'a' ? '' : ' a';
       returnExpr = `String(list.select("${selector}${childSel}").get(${index}).attr("href"))`;
     } else if (fieldKey === 'coverUrl') {
@@ -2208,7 +2239,10 @@ function toLegadoRule(selector, fieldKey, fieldData, tagName) {
   }
 
   // Native index mode
-  const atPart = buildAtSelector('', fieldKey, tagName);
+  if (listItemTag === 'a' && linkFields.includes(fieldKey)) {
+    return `a.${index}@href`;
+  }
+  const atPart = buildAtSelector('', fieldKey, tagName, listItemTag);
   return `${selector}.${index}${atPart}`;
 }
 
@@ -2225,13 +2259,14 @@ function handleSelectorSelected(message) {
 
   const rule = getRuleState();
   const fieldData = rule.fields[step] || {};
-  const legadoRule = toLegadoRule(selector, step, fieldData, message.tagName);
+  const legadoRule = toLegadoRule(selector, step, fieldData, message.tagName, message.listItemTagName);
 
   rule.fields[step] = {
     value: legadoRule,
     state: 'selected',
     rawSelector: selector,
     tagName: message.tagName || '',
+    listItemTagName: message.listItemTagName || '',
     previews: previews || [],
   };
   rule.fieldStates[step] = 'selected';

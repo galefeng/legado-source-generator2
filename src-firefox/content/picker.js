@@ -343,10 +343,16 @@
 
   function collectPreviews(selector, maxCount, listItemSelector) {
     try {
-      const mkItem = (el) => ({
-        text: el.textContent ? el.textContent.trim().replace(/\s+/g, ' ').substring(0, 150) : '',
-        html: el.outerHTML,
-      });
+      const mkItem = (el, listItem) => {
+        const item = {
+          text: el.textContent ? el.textContent.trim().replace(/\s+/g, ' ').substring(0, 150) : '',
+          html: el.outerHTML,
+        };
+        if (listItem && listItem !== el) {
+          item.listHtml = listItem.outerHTML;
+        }
+        return item;
+      };
 
       if (listItemSelector) {
         // Group elements by parent list item: [[item1_matches...], [item2_matches...], ...]
@@ -354,7 +360,7 @@
         const groups = [];
         for (const item of listItems) {
           const els = item.querySelectorAll(selector);
-          groups.push(Array.from(els).map(mkItem));
+          groups.push(Array.from(els).map(el => mkItem(el, item)));
         }
         return groups;
       }
@@ -530,6 +536,7 @@
       selector,
       step: currentStep,
       tagName: element.tagName.toLowerCase(),
+      listItemTagName: listItemRoot ? listItemRoot.tagName.toLowerCase() : null,
       elementInfo: {
         id: element.id || null,
         classes: element.className ? element.className.trim().split(/\s+/) : [],
