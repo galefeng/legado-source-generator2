@@ -10,7 +10,7 @@
 
 ## 想用ai自动化编写调试书源？
 
-搜索legado-book-source-skill
+试试[legado-book-source-skill](https://github.com/z1131392774/legado-book-source-skill)
 
 ## 演示视频
 
