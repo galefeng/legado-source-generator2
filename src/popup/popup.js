@@ -1617,9 +1617,26 @@ function bindEvents() {
 
   document.getElementById('autoFillBtn').addEventListener('click', handleAutoFill);
   document.getElementById('checkUpdateBtn').addEventListener('click', handleCheckUpdate);
-  document.getElementById('closeUpdateBtn').addEventListener('click', () => {
-    document.getElementById('updateModal').classList.add('hidden');
+  document.getElementById('closeUpdateBtn').addEventListener('click', () => document.getElementById('updateModal').classList.add('hidden'));
+  document.getElementById('updateModal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('updateModal')) document.getElementById('updateModal').classList.add('hidden');
   });
+
+  // Quick insert button (span, not button — prevent focus loss)
+  const quickInsertBtn = document.getElementById('quickInsertBtn');
+  if (quickInsertBtn) {
+    quickInsertBtn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+    });
+    quickInsertBtn.addEventListener('click', () => {
+      if (typeof window.openQuickInsertPanel === 'function') {
+        const activeEl = document.activeElement;
+        window.loadSnippets(() => {
+          window.openQuickInsertPanel(activeEl);
+        });
+      }
+    });
+  }
   document.getElementById('importBtn').addEventListener('click', openImportModal);
   document.getElementById('closeImportBtn').addEventListener('click', closeImportModal);
   document.getElementById('cancelImportBtn').addEventListener('click', closeImportModal);

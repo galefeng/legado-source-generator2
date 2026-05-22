@@ -12,6 +12,7 @@
       <div class="header-top">
         <h1>Legado 书源生成器</h1>
         <div class="header-actions">
+          <span id="quickInsertBtn" class="btn btn-icon" title="快速插入文本片段">⚡ 快速插入</span>
           <button id="importBtn" class="btn btn-icon" title="导入 JSON 配置">📥 导入</button>
           <button id="checkUpdateBtn" class="btn btn-icon" title="检查更新">🔄 检查更新</button>
         </div>
@@ -478,10 +479,15 @@
       </div>
     </div>
 
+    <div id="quickInsertModal" class="modal hidden">
+      <div class="modal-content qi-modal-content" id="quickInsertModalContent"></div>
+    </div>
+
   </div>
   <script src="batch-url-utils.js"></script>
   <script src="import-utils.js"></script>
   <script src="explore-url-editor.js"></script>
+  <script src="quick-insert.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

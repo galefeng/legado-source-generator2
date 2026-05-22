@@ -2211,3 +2211,170 @@ body {
   color: var(--text);
   word-break: break-all;
 }
+
+/* ============================================
+   Quick Insert Panel
+   ============================================ */
+
+.qi-modal-content {
+  max-width: 420px;
+}
+
+.qi-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.qi-header h3 {
+  margin: 0;
+}
+
+.qi-header .btn-icon {
+  padding: 2px 6px;
+  font-size: 14px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.qi-header .btn-icon:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.qi-add-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.qi-add-row .qi-input {
+  flex: 1;
+  min-height: 32px;
+  resize: none;
+  margin-bottom: 0;
+}
+
+.qi-add-row .btn {
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.qi-list {
+  flex: 1;
+  min-height: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.qi-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.qi-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.qi-item:last-child {
+  border-bottom: none;
+}
+
+.qi-item:hover {
+  background: var(--bg-hover);
+}
+
+.qi-item.qi-dragging {
+  opacity: 0.5;
+}
+
+.qi-drag-handle {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: grab;
+  padding: 2px 0;
+  user-select: none;
+  line-height: 1.4;
+}
+
+.qi-drag-handle:hover {
+  color: var(--text-secondary);
+}
+
+.qi-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.qi-item-preview {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.4;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.qi-edit-input {
+  font-size: 12px;
+  min-height: 28px;
+  padding: 4px 6px;
+  margin-bottom: 0;
+}
+
+.qi-item-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.qi-item-actions .btn {
+  padding: 2px 6px;
+  font-size: 11px;
+  min-height: 22px;
+}
+
+.qi-import-panel {
+  margin-bottom: 12px;
+  padding: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.qi-import-panel .input {
+  margin-bottom: 8px;
+  font-size: 12px;
+  min-height: 56px;
+}
+
+.qi-import-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.qi-footer {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
