@@ -1620,6 +1620,30 @@ function bindEvents() {
   document.getElementById('closeUpdateBtn').addEventListener('click', () => {
     document.getElementById('updateModal').classList.add('hidden');
   });
+  document.getElementById('importBtn').addEventListener('click', openImportModal);
+  document.getElementById('closeImportBtn').addEventListener('click', closeImportModal);
+  document.getElementById('cancelImportBtn').addEventListener('click', closeImportModal);
+  document.getElementById('confirmImportBtn').addEventListener('click', handleImportConfirm);
+  document.getElementById('importFileBtn').addEventListener('click', () => {
+    document.getElementById('importFileInput').click();
+  });
+  document.getElementById('importFileInput').addEventListener('change', handleImportFileSelect);
+  document.getElementById('importJsonTextarea').addEventListener('input', handleImportJsonInput);
+  document.getElementById('importSelectAllBtn')?.addEventListener('click', () => {
+    importSelection = getDefaultImportSelection();
+    saveImportSelection(importSelection);
+    renderImportTree();
+  });
+  document.getElementById('importInvertBtn')?.addEventListener('click', () => {
+    IMPORT_CATEGORIES.forEach(cat => {
+      cat.items.forEach(item => {
+        const key = buildSelectionKey(cat.key, item.key);
+        importSelection[key] = !importSelection[key];
+      });
+    });
+    saveImportSelection(importSelection);
+    renderImportTree();
+  });
   document.getElementById('debugTutorialBtn')?.addEventListener('click', () => {
     document.getElementById('debugTutorialModal')?.classList.remove('hidden');
   });
@@ -2083,6 +2107,276 @@ function handleDownload() {
   a.download = `legado-source-${state.bookSourceName || 'export'}.json`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ============================================
+//    Import JSON Config
+// ============================================
+
+let importSelection = null;      // Current import selection (map of key -> boolean)
+let parsedImportJson = null;    // Successfully parsed import JSON
+
+function openImportModal() {
+  const modal = document.getElementById('importModal');
+  const jsonTextarea = document.getElementById('importJsonTextarea');
+  const errorEl = document.getElementById('importJsonError');
+  const treeSection = document.getElementById('importTreeSection');
+  const confirmBtn = document.getElementById('confirmImportBtn');
+  const warningArea = document.getElementById('importWarningArea');
+
+  // Reset state
+  parsedImportJson = null;
+  jsonTextarea.value = '';
+  errorEl.classList.add('hidden');
+  errorEl.textContent = '';
+  treeSection.classList.add('hidden');
+  warningArea.innerHTML = '';
+  confirmBtn.disabled = true;
+
+  // Load persistent import selection
+  loadImportSelection((sel) => {
+    importSelection = sel;
+  });
+
+  modal.classList.remove('hidden');
+  jsonTextarea.focus();
+}
+
+function closeImportModal() {
+  document.getElementById('importModal').classList.add('hidden');
+}
+
+function handleImportJsonInput() {
+  const jsonTextarea = document.getElementById('importJsonTextarea');
+  const errorEl = document.getElementById('importJsonError');
+  const treeSection = document.getElementById('importTreeSection');
+  const confirmBtn = document.getElementById('confirmImportBtn');
+  const warningArea = document.getElementById('importWarningArea');
+
+  const raw = jsonTextarea.value;
+
+  if (!raw.trim()) {
+    errorEl.classList.add('hidden');
+    treeSection.classList.add('hidden');
+    warningArea.innerHTML = '';
+    confirmBtn.disabled = true;
+    parsedImportJson = null;
+    return;
+  }
+
+  try {
+    parsedImportJson = parseImportJson(raw);
+    errorEl.classList.add('hidden');
+    errorEl.textContent = '';
+
+    // Ensure selection is loaded before rendering
+    if (!importSelection) {
+      importSelection = getDefaultImportSelection();
+    }
+
+    renderImportTree();
+    treeSection.classList.remove('hidden');
+
+    // Build cover warning
+    warningArea.innerHTML = buildCoverWarning(parsedImportJson, state);
+
+    confirmBtn.disabled = false;
+  } catch (e) {
+    parsedImportJson = null;
+    errorEl.textContent = e.message;
+    errorEl.classList.remove('hidden');
+    treeSection.classList.add('hidden');
+    warningArea.innerHTML = '';
+    confirmBtn.disabled = true;
+  }
+}
+
+function handleImportFileSelect() {
+  const fileInput = document.getElementById('importFileInput');
+  const file = fileInput.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function () {
+    const jsonTextarea = document.getElementById('importJsonTextarea');
+    jsonTextarea.value = reader.result;
+    autoResizeTextarea(jsonTextarea);
+    // Trigger parse
+    handleImportJsonInput();
+  };
+  reader.readAsText(file);
+
+  // Reset file input so same file can be selected again
+  fileInput.value = '';
+}
+
+function renderImportTree() {
+  const container = document.getElementById('importTreeContainer');
+  if (!container) return;
+
+  // Ensure selection is initialized
+  if (!importSelection) {
+    importSelection = getDefaultImportSelection();
+  }
+
+  let html = '';
+
+  IMPORT_CATEGORIES.forEach(cat => {
+    // Count selected children
+    const total = cat.items.length;
+    const selected = cat.items.filter(item => importSelection[buildSelectionKey(cat.key, item.key)]).length;
+    const allSelected = selected === total;
+
+    html += '<div class="import-tree-category">';
+    html += '<label class="import-tree-parent">';
+    html += '<input type="checkbox" class="import-cat-check" '
+      + 'data-cat="' + cat.key + '"'
+      + (allSelected ? ' checked' : '')
+      + '>';
+    html += '<span class="import-cat-label">' + cat.label + '</span>';
+    html += '</label>';
+
+    html += '<div class="import-tree-children">';
+    cat.items.forEach(item => {
+      const selKey = buildSelectionKey(cat.key, item.key);
+      const checked = importSelection[selKey] ? ' checked' : '';
+      html += '<label class="import-tree-child">';
+      html += '<input type="checkbox" class="import-item-check" '
+        + 'data-cat="' + cat.key + '" data-key="' + item.key + '"'
+        + checked + '>';
+      html += '<span>' + item.label + '</span>';
+      html += '</label>';
+    });
+    html += '</div>';
+    html += '</div>';
+  });
+
+  container.innerHTML = html;
+
+  // Set indeterminate state on category checkboxes with partial selection
+  container.querySelectorAll('.import-cat-check').forEach(cb => {
+    const catKey = cb.dataset.cat;
+    const cat = IMPORT_CATEGORIES.find(c => c.key === catKey);
+    if (cat) {
+      const total = cat.items.length;
+      const selected = cat.items.filter(item => importSelection[buildSelectionKey(catKey, item.key)]).length;
+      cb.indeterminate = selected > 0 && selected < total;
+    }
+  });
+
+  // Bind category checkbox events
+  container.querySelectorAll('.import-cat-check').forEach(cb => {
+    cb.addEventListener('change', function () {
+      const catKey = this.dataset.cat;
+      const checked = this.checked;
+      // Set all child items
+      const cat = IMPORT_CATEGORIES.find(c => c.key === catKey);
+      if (cat) {
+        cat.items.forEach(item => {
+          importSelection[buildSelectionKey(catKey, item.key)] = checked;
+        });
+      }
+      saveImportSelection(importSelection);
+
+      // Update child checkboxes visually
+      const children = container.querySelectorAll('.import-item-check[data-cat="' + catKey + '"]');
+      children.forEach(child => { child.checked = checked; });
+    });
+  });
+
+  // Bind item checkbox events
+  container.querySelectorAll('.import-item-check').forEach(cb => {
+    cb.addEventListener('change', function () {
+      const catKey = this.dataset.cat;
+      const itemKey = this.dataset.key;
+      importSelection[buildSelectionKey(catKey, itemKey)] = this.checked;
+      saveImportSelection(importSelection);
+
+      // Update parent checkbox state
+      updateParentCheckbox(container, catKey);
+    });
+  });
+}
+
+function updateParentCheckbox(container, catKey) {
+  const parentCb = container.querySelector('.import-cat-check[data-cat="' + catKey + '"]');
+  if (!parentCb) return;
+
+  const cat = IMPORT_CATEGORIES.find(c => c.key === catKey);
+  if (!cat) return;
+
+  const total = cat.items.length;
+  const selected = cat.items.filter(item => importSelection[buildSelectionKey(catKey, item.key)]).length;
+
+  parentCb.checked = selected === total;
+  parentCb.indeterminate = selected > 0 && selected < total;
+}
+
+function handleImportConfirm() {
+  if (!parsedImportJson) {
+    showToast('请先输入有效的 JSON', 'warning');
+    return;
+  }
+
+  if (!importSelection) {
+    importSelection = getDefaultImportSelection();
+  }
+
+  // Apply import to state
+  applyImportToState(state, parsedImportJson, importSelection);
+
+  // Close modal
+  closeImportModal();
+
+  // Save state directly (don't use saveState which reads from old DOM)
+  chrome.storage.local.set({ legadoSourceState: state });
+
+  // Sync DOM from state and refresh all UI panels
+  syncDomFromState();
+  renderModeTabs();
+  renderRuleTypeTabs();
+  updateStepIndicator();
+  renderFields();
+  updateNavButtons();
+  renderFieldStatusSummary();
+  renderHeaderItems();
+  updateEditorVisibility();
+
+  // If exploreUrl was imported, update explore editor state
+  if (importSelection['explore.exploreUrl']) {
+    const exploreStr = parsedImportJson.exploreUrl;
+    if (exploreStr) {
+      const items = parseExploreUrlToItems(exploreStr);
+      chrome.storage.local.set({ exploreEditorState: { items: items, format: 2 } });
+      if (typeof loadExploreState === 'function') {
+        loadExploreState();
+      }
+    }
+  }
+
+  showToast('导入成功', 'info');
+}
+
+/**
+ * Sync all DOM inputs from the current state object.
+ * Used after import to reflect the new state values in the UI.
+ */
+function syncDomFromState() {
+  const nameEl = document.getElementById('bookSourceName');
+  const urlEl = document.getElementById('bookSourceUrl');
+  const commentEl = document.getElementById('bookSourceComment');
+  const loginEl = document.getElementById('loginCheckJs');
+  const typeEl = document.getElementById('bookSourceTypeSelect');
+  const patternEl = document.getElementById('bookUrlPattern');
+  const searchEl = document.getElementById('searchUrlTemplate');
+
+  if (nameEl) { nameEl.value = state.bookSourceName || ''; autoResizeTextarea(nameEl); }
+  if (urlEl) { urlEl.value = state.bookSourceUrl || ''; autoResizeTextarea(urlEl); }
+  if (commentEl) { commentEl.value = state.bookSourceComment || ''; autoResizeTextarea(commentEl); }
+  if (loginEl) { loginEl.value = state.loginCheckJs || ''; autoResizeTextarea(loginEl); }
+  if (typeEl) typeEl.value = String(state.bookSourceType || 0);
+  if (patternEl) { patternEl.value = state.bookUrlPattern || ''; autoResizeTextarea(patternEl); }
+  if (searchEl) { searchEl.value = state.searchUrl || ''; autoResizeTextarea(searchEl); }
 }
 
 function closeModal() {

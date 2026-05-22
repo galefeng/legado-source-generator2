@@ -12,6 +12,7 @@
       <div class="header-top">
         <h1>Legado 书源生成器</h1>
         <div class="header-actions">
+          <button id="importBtn" class="btn btn-icon" title="导入 JSON 配置">📥 导入</button>
           <button id="checkUpdateBtn" class="btn btn-icon" title="检查更新">🔄 检查更新</button>
         </div>
       </div>
@@ -391,6 +392,35 @@
       </div>
     </div>
 
+    <div id="importModal" class="modal hidden">
+      <div class="modal-content import-modal">
+        <h3>导入 JSON 配置 <button id="closeImportBtn" class="btn btn-icon import-close-btn" title="关闭">✕</button></h3>
+        <div class="import-json-input-section">
+          <label>📋 粘贴 JSON</label>
+          <textarea id="importJsonTextarea" class="input" rows="4" placeholder="在此粘贴 JSON 内容..."></textarea>
+          <div id="importJsonError" class="import-json-error hidden"></div>
+          <div class="import-or-divider">── 或 ──</div>
+          <button id="importFileBtn" class="btn btn-action">📁 选择文件</button>
+          <input type="file" id="importFileInput" accept=".json,application/json" style="display:none">
+        </div>
+        <div id="importTreeSection" class="import-tree-section hidden">
+          <div class="import-tree-header">
+            <label>选择要导入的项：</label>
+            <div class="import-tree-actions">
+              <button id="importSelectAllBtn" class="btn btn-sm btn-secondary">全选</button>
+              <button id="importInvertBtn" class="btn btn-sm btn-secondary">反选</button>
+            </div>
+          </div>
+          <div id="importTreeContainer" class="import-tree"></div>
+        </div>
+        <div id="importWarningArea" class="import-warning-area"></div>
+        <div class="modal-actions">
+          <button id="cancelImportBtn" class="btn btn-secondary">取消</button>
+          <button id="confirmImportBtn" class="btn btn-primary" disabled>确认导入</button>
+        </div>
+      </div>
+    </div>
+
     <div id="lazyLoadModal" class="modal hidden">
       <div class="modal-content">
         <div class="lazy-scroll">
@@ -450,6 +480,7 @@
 
   </div>
   <script src="batch-url-utils.js"></script>
+  <script src="import-utils.js"></script>
   <script src="explore-url-editor.js"></script>
   <script src="popup.js"></script>
 </body>

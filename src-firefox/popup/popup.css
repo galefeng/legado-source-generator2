@@ -1888,3 +1888,193 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Import Modal ──────────────────────── */
+
+.import-modal {
+  max-width: 520px;
+  max-height: 85vh;
+}
+
+.import-modal h3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.import-close-btn {
+  font-size: 14px;
+  padding: 2px 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.import-close-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.import-json-input-section {
+  margin-bottom: 12px;
+}
+
+.import-json-input-section label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+  display: block;
+}
+
+.import-json-input-section .input {
+  font-size: 12px;
+  min-height: 60px;
+  resize: vertical;
+}
+
+.import-json-error {
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: var(--danger-dim);
+  color: var(--danger);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.import-or-divider {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 8px 0;
+}
+
+.import-tree-section {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 -20px;
+  padding: 8px 20px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.import-tree-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.import-tree-header > label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.import-tree-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.import-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.import-tree-category {
+  display: flex;
+  flex-direction: column;
+}
+
+.import-tree-parent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg);
+  user-select: none;
+}
+
+.import-tree-parent:hover {
+  background: var(--bg-hover);
+}
+
+.import-cat-label {
+  flex: 1;
+}
+
+.import-tree-children {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px 4px 4px 28px;
+}
+
+.import-tree-child {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-secondary);
+  user-select: none;
+  transition: background 0.1s;
+}
+
+.import-tree-child:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.import-tree-child input[type="checkbox"],
+.import-tree-parent input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.import-warning-area {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.import-warning {
+  font-size: 12px;
+  color: var(--warning);
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.5;
+}
+
+.import-warning-icon {
+  flex-shrink: 0;
+}
+
+.import-warning code {
+  background: var(--bg);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  word-break: break-all;
+}
