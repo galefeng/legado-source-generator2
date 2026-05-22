@@ -435,27 +435,8 @@ function updateStepIndicator() {
     return;
   }
   const field = fields[rule.currentStep];
-  const fieldState = rule.fieldStates[field.key] || 'pending';
-  const fieldData = rule.fields[field.key] || {};
-  let stateLabel;
-  if (fieldState === 'selected' && fieldData.state === 'manual') {
-    stateLabel = '(手动输入)';
-  } else {
-    stateLabel = getStateLabel(fieldState);
-  }
-  const stepText = `${rule.currentStep + 1}/${fields.length}: ${field.label}${field.required ? ' *' : ''} ${stateLabel}`;
+  const stepText = `${rule.currentStep + 1}/${fields.length}: ${field.label}${field.required ? ' *' : ''}`;
   document.getElementById('stepText').textContent = stepText;
-}
-
-function getStateLabel(fieldState) {
-  const labels = {
-    pending: '',
-    picking: '(选择中...)',
-    selected: '(已选择)',
-    skipped: '(已跳过)',
-    manual: '(手动输入)',
-  };
-  return labels[fieldState] || '';
 }
 
 function renderFields() {
@@ -488,7 +469,7 @@ function renderFields() {
       </div>
     `;
     const textarea = document.getElementById('fieldValue');
-    textarea.addEventListener('input', handleFieldInput);
+    textarea.addEventListener('input', handleWebJsInput);
     autoResizeTextarea(textarea);
     document.getElementById('skipBtn').addEventListener('click', handleSkip);
     document.getElementById('clearBtn').addEventListener('click', handleClearField);
@@ -506,7 +487,6 @@ function renderFields() {
   const isLinkField = LINK_FIELDS.includes(field.key);
   const rawValue = fieldData.value || '';
   const value = (fieldData.webView && isLinkField && rawValue) ? applyWebView(rawValue) : rawValue;
-  const isManual = fieldState === 'manual';
   const isNativeListField = ['bookList', 'chapterList'].includes(field.key);
   const isPickerListField = isNativeListField;
   const fieldIndex = fieldData.listIndex || {};
@@ -580,7 +560,7 @@ function renderFields() {
       <label>${field.label}${field.required ? ' <span class="required">*</span>' : ''}</label>
       <div class="field-value">
         <textarea id="fieldValue" class="input" rows="1"
-          placeholder="请输入或选择" ${isManual ? '' : 'readonly'}>${escapeHtml(value)}</textarea>
+          placeholder="请输入或选择">${escapeHtml(value)}</textarea>
       </div>
       <div class="field-actions">
         <button id="selectBtn" class="btn btn-action" ${fieldState === 'picking' ? 'disabled' : ''}>
@@ -588,19 +568,15 @@ function renderFields() {
         </button>
         ${fieldState === 'picking' ? `<button id="cancelBtn" class="btn btn-action btn-cancel">取消选择</button>` : ''}
         <button id="skipBtn" class="btn btn-action">跳过</button>
-        <button id="manualBtn" class="btn btn-action ${fieldState === 'manual' ? 'btn-active' : ''}">
-          ${fieldState === 'manual' ? '确认输入' : '手动输入'}
-        </button>
-        ${fieldState === 'selected' || fieldState === 'manual' ? `
+        <button id="confirmBtn" class="btn btn-action">确认输入</button>
         ${isLinkField ? `<button id="webViewBtn" class="btn btn-action${fieldData.webView ? ' btn-active' : ''}">webView${fieldData.webView ? ' ✓' : ''}</button>` : ''}
-        <button id="clearBtn" class="btn btn-action btn-clear">清空</button>
-        ` : ''}
+        ${fieldState === 'selected' ? `<button id="clearBtn" class="btn btn-action btn-clear">清空</button>` : ''}
       </div>
       ${indexHTML}
       ${isPickerListField ? `
       <div class="list-hint">⚠️ <strong>需要选择两个同列表元素</strong>，自动提取交集生成选择器</div>
       ` : ''}
-      ${fieldState === 'selected' && (fieldData.rawSelector || (fieldData.state === 'manual' && fieldData.value)) ? `
+      ${fieldState === 'selected' && (fieldData.rawSelector || fieldData.value) ? `
         <div class="selector-info">
           <span class="selector-label">规则:</span>
           <code class="selector-value">${escapeHtml(fieldData.value || fieldData.rawSelector || '')}</code>
@@ -640,18 +616,12 @@ function renderSummaryView(container) {
   const rows = fields.map((f, index) => {
     const fieldState = rule.fieldStates[f.key] || 'pending';
     const fieldData = rule.fields[f.key] || {};
-    let stateIcon;
-    if (fieldState === 'selected' && fieldData.state === 'manual') {
-      stateIcon = '◉';
-    } else {
-      stateIcon = {
-        pending: '○',
-        picking: '◐',
-        selected: '●',
-        skipped: '⊘',
-        manual: '◉',
-      }[fieldState];
-    }
+    let stateIcon = {
+      pending: '○',
+      picking: '◐',
+      selected: '●',
+      skipped: '⊘',
+    }[fieldState];
 
     const isLinkField = LINK_FIELDS.includes(f.key);
     const rawValue = fieldData.value || '';
@@ -700,11 +670,11 @@ function renderSummaryView(container) {
         value = stripWebView(value);
       }
       if (!rule.fields[key]) {
-        rule.fields[key] = { value: '', state: 'manual', rawSelector: '' };
+        rule.fields[key] = { value: '', state: 'selected', rawSelector: '' };
       }
       rule.fields[key].value = value;
-      rule.fields[key].state = 'manual';
-      rule.fieldStates[key] = 'manual';
+      rule.fields[key].state = 'selected';
+      rule.fieldStates[key] = 'selected';
       saveState();
       renderFieldStatusSummary();
     });
@@ -718,11 +688,14 @@ function bindFieldEvents() {
   if (cancelBtn) cancelBtn.addEventListener('click', handleCancelSelection);
   const skipBtn = document.getElementById('skipBtn');
   if (skipBtn) skipBtn.addEventListener('click', handleSkip);
-  const manualBtn = document.getElementById('manualBtn');
-  if (manualBtn) manualBtn.addEventListener('click', handleManualInput);
+  const confirmBtn = document.getElementById('confirmBtn');
+  if (confirmBtn) confirmBtn.addEventListener('click', () => {
+    document.getElementById('fieldValue')?.blur();
+  });
   const fieldValue = document.getElementById('fieldValue');
   if (fieldValue) {
     fieldValue.addEventListener('input', handleFieldInput);
+    fieldValue.addEventListener('blur', handleFieldBlur);
     autoResizeTextarea(fieldValue);
   }
   const indexStart = document.getElementById('indexStart');
@@ -903,46 +876,6 @@ function handleSkip() {
   rule.fieldStates[field.key] = 'skipped';
   saveState();
   goToNextStep();
-}
-
-function handleManualInput() {
-  const fields = getFields();
-  const rule = getRuleState();
-  const field = fields[rule.currentStep];
-  const listFields = ['bookList', 'chapterList'];
-
-  if (rule.fieldStates[field.key] === 'manual') {
-    // Confirm: manual → selected
-    rule.fieldStates[field.key] = 'selected';
-    // Trigger preview for confirmed manual input
-    const value = rule.fields[field.key]?.value?.trim();
-    if (value && !value.startsWith('<js>')) {
-      previewManualSelector(field.key, value);
-      // Set bookListSelector for list fields so subsequent fields can scope selection
-      if (listFields.includes(field.key)) {
-        rule.bookListSelector = value;
-      }
-    }
-  } else {
-    // Enter manual mode: clear selector info from previous selection
-    rule.fieldStates[field.key] = 'manual';
-    rule.fields[field.key] = rule.fields[field.key] || { value: '', state: 'manual', rawSelector: '' };
-    rule.fields[field.key].state = 'manual';
-    rule.fields[field.key].rawSelector = '';
-    rule.fields[field.key].previews = undefined;
-  }
-
-  saveState();
-  renderFields();
-  renderFieldStatusSummary();
-  updateStepIndicator();
-
-  if (rule.fieldStates[field.key] === 'manual') {
-    setTimeout(() => {
-      const input = document.getElementById('fieldValue');
-      if (input) input.focus();
-    }, 50);
-  }
 }
 
 function resolvePreviewSelector(input) {
@@ -1298,14 +1231,88 @@ function handleFieldInput(e) {
   }
 
   if (!rule.fields[field.key]) {
-    rule.fields[field.key] = { value: '', state: 'manual', rawSelector: '' };
+    rule.fields[field.key] = { value: '', state: 'selected', rawSelector: '' };
   }
   rule.fields[field.key].value = value;
-  rule.fields[field.key].state = 'manual';
-  rule.fieldStates[field.key] = 'manual';
+}
+
+function handleWebJsInput(e) {
+  const fields = getFields();
+  const rule = getRuleState();
+  const field = fields[rule.currentStep];
+  const value = e.target.value;
+
+  if (!rule.fields[field.key]) {
+    rule.fields[field.key] = { value: '', state: 'selected', rawSelector: '' };
+  }
+  rule.fields[field.key].value = value;
+  rule.fields[field.key].state = 'selected';
+  rule.fieldStates[field.key] = 'selected';
+  saveState();
+  renderFieldStatusSummary();
+}
+
+function handleFieldBlur(e) {
+  const fields = getFields();
+  const rule = getRuleState();
+  const field = fields[rule.currentStep];
+  let value = (e.target.value || '').trim();
+
+  // Strip webView suffix if the field has webView enabled
+  if (rule.fields[field.key]?.webView && LINK_FIELDS.includes(field.key)) {
+    value = stripWebView(value);
+  }
+
+  if (!value) {
+    delete rule.fields[field.key];
+    rule.fieldStates[field.key] = 'pending';
+    saveState();
+    renderFieldStatusSummary();
+    updateStepIndicator();
+    renderFields();
+    return;
+  }
+
+  if (!rule.fields[field.key]) {
+    rule.fields[field.key] = { value: '', state: 'selected', rawSelector: '' };
+  }
+  const fieldData = rule.fields[field.key];
+  fieldData.value = value;
+  fieldData.state = 'selected';
+  rule.fieldStates[field.key] = 'selected';
+
+  // Set rawSelector and bookListSelector for preview display
+  const previewSelector = resolvePreviewSelector(value);
+  fieldData.rawSelector = previewSelector || value;
+  const listFields = ['bookList', 'chapterList'];
+  if (listFields.includes(field.key)) {
+    rule.bookListSelector = previewSelector || value;
+  }
 
   saveState();
   renderFieldStatusSummary();
+  updateStepIndicator();
+  renderFields();
+
+  // Async preview query
+  if (previewSelector && !value.startsWith('<js>')) {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs[0]) return;
+      chrome.tabs.sendMessage(tabs[0].id, {
+        action: 'previewSelector',
+        selector: previewSelector,
+      }, (response) => {
+        if (chrome.runtime.lastError || !response) return;
+        const r = getRuleState();
+        const fd = r.fields[field.key];
+          if (fd) {
+            fd.previews = response.previews || [];
+            saveState();
+            renderFields();
+          }
+      });
+    });
+  }
 }
 
 function goToNextStep() {
@@ -1360,19 +1367,12 @@ function renderFieldStatusSummary() {
   const rule = getRuleState();
   const summary = fields.map((f, index) => {
     const fieldState = rule.fieldStates[f.key] || 'pending';
-    const fieldData = rule.fields[f.key] || {};
-    let stateIcon;
-    if (fieldState === 'selected' && fieldData.state === 'manual') {
-      stateIcon = '◉';
-    } else {
-      stateIcon = {
-        pending: '○',
-        picking: '◐',
-        selected: '●',
-        skipped: '⊘',
-        manual: '◉',
-      }[fieldState];
-    }
+    let stateIcon = {
+      pending: '○',
+      picking: '◐',
+      selected: '●',
+      skipped: '⊘',
+    }[fieldState];
 
     const activeClass = index === rule.currentStep ? ' active' : '';
     return `<span class="status-item${activeClass}" data-field="${f.key}" data-step-index="${index}">${stateIcon} ${f.label}</span>`;
@@ -1721,13 +1721,6 @@ function handleNext() {
     if (!fieldState || fieldState === 'pending' || fieldState === 'skipped') {
       showToast(`请完成必填字段"${field.label}"`, 'warning');
       return;
-    }
-    if (fieldState === 'manual') {
-      const fieldData = rule.fields[field.key];
-      if (!fieldData || !fieldData.value || !fieldData.value.trim()) {
-        showToast(`请输入"${field.label}"的值`, 'warning');
-        return;
-      }
     }
   }
 
