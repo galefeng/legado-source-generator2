@@ -1736,7 +1736,7 @@ function handleNext() {
 
   if (field.required) {
     if (!fieldState || fieldState === 'pending' || fieldState === 'skipped') {
-      showToast(`请完成必填字段"${field.label}"`, 'warning');
+      showToast(`请完成必填字段"${field.label}"，或者点击输入框下的跳过按钮`, 'warning');
       return;
     }
   }
