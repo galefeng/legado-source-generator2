@@ -2113,24 +2113,6 @@ body {
   color: var(--text);
 }
 
-.qi-add-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.qi-add-row .qi-input {
-  flex: 1;
-  min-height: 32px;
-  resize: none;
-  margin-bottom: 0;
-}
-
-.qi-add-row .btn {
-  flex-shrink: 0;
-  align-self: flex-start;
-}
-
 .qi-list {
   flex: 1;
   min-height: 0;
@@ -2198,13 +2180,6 @@ body {
   white-space: pre-wrap;
 }
 
-.qi-edit-input {
-  font-size: 12px;
-  min-height: 28px;
-  padding: 4px 6px;
-  margin-bottom: 0;
-}
-
 .qi-item-actions {
   display: flex;
   gap: 4px;
@@ -2240,8 +2215,40 @@ body {
 .qi-footer {
   display: flex;
   gap: 6px;
-  justify-content: flex-end;
+  justify-content: space-between;
   flex-shrink: 0;
   padding-top: 12px;
   border-top: 1px solid var(--border);
+}
+
+.qi-footer-right {
+  display: flex;
+  gap: 6px;
+}
+
+/* ── Snippet Form Modal ────────────────── */
+
+.snippet-form-modal-content {
+  max-width: 460px;
+}
+
+.snippet-form-field {
+  margin-bottom: 10px;
+}
+
+.snippet-form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.snippet-form-field .input {
+  min-height: 40px;
+  resize: none;
+}
+
+#snippetFormLabel {
+  font-family: inherit;
 }

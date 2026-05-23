@@ -6,7 +6,7 @@
 const STORAGE_KEY = 'quickInsertSnippets';
 
 let snippets = [];
-let editingIndex = -1;
+let snippetFormIndex = -1; // -1 = new, >= 0 = editing index
 let dragSrcIndex = -1;
 
 // ── Storage ──────────────────────────────────────
@@ -61,29 +61,20 @@ function renderQuickInsertModal(targetEl) {
       <h3>快速插入</h3>
       <button id="qiCloseBtn" class="btn btn-icon" title="关闭">✕</button>
     </div>
-    <div class="qi-add-row">
-      <textarea id="qiNewSnippet" class="input qi-input" rows="1" placeholder="输入新文本片段..."></textarea>
-      <button id="qiAddBtn" class="btn btn-action">添加</button>
-    </div>
     <div class="qi-list" id="qiSnippetList">
       ${renderSnippetList()}
     </div>
     <div class="qi-footer">
-      <button id="qiExportBtn" class="btn btn-action">导出 JSON</button>
-      <button id="qiImportBtn" class="btn btn-action">导入 JSON</button>
-      <input type="file" id="qiImportFileInput" accept=".json,application/json" style="display:none">
-      <button id="qiCloseFooterBtn" class="btn btn-secondary">关闭</button>
+      <button id="qiAddBtn" class="btn btn-action">新增</button>
+      <div class="qi-footer-right">
+        <button id="qiImportBtn" class="btn btn-action">导入 JSON</button>
+        <button id="qiExportBtn" class="btn btn-action">导出 JSON</button>
+        <input type="file" id="qiImportFileInput" accept=".json,application/json" style="display:none">
+      </div>
     </div>
   `;
 
   container.innerHTML = html;
-
-  // Auto-resize
-  const qiInput = document.getElementById('qiNewSnippet');
-  if (qiInput) {
-    autoResizeTextarea(qiInput);
-    qiInput.focus();
-  }
 
   bindQuickInsertEvents(container);
 }
@@ -93,18 +84,18 @@ function renderSnippetList() {
     return '<div class="qi-empty">暂无文本片段，请添加</div>';
   }
 
-  return snippets.map(function(text, i) {
-    const display = text.length > 80 ? text.substring(0, 80) + '...' : text;
+  return snippets.map(function(snippet, i) {
+    const label = typeof snippet === 'object' && snippet ? (snippet.label || '') : '';
+    const text = typeof snippet === 'object' && snippet ? (snippet.text || '') : '';
+    const display = label || (text.length > 80 ? text.substring(0, 80) + '...' : text);
     return `
-      <div class="qi-item" draggable="true" data-qi-index="${i}" data-qi-editing="false">
+      <div class="qi-item" draggable="true" data-qi-index="${i}">
         <span class="qi-drag-handle" title="拖拽排序">⋮⋮</span>
         <div class="qi-item-content">
-          <div class="qi-item-preview ${editingIndex === i ? 'hidden' : ''}">${escapeHtml(display)}</div>
-          <textarea class="input qi-edit-input ${editingIndex !== i ? 'hidden' : ''}" rows="1" data-qi-edit="${i}">${escapeHtml(text)}</textarea>
+          <div class="qi-item-preview">${escapeHtml(display)}</div>
         </div>
         <div class="qi-item-actions">
-          <button class="btn btn-action qi-edit-btn" data-qi-action="edit" data-qi-index="${i}">${editingIndex === i ? '保存' : '编辑'}</button>
-          ${editingIndex === i ? `<button class="btn btn-action qi-cancel-edit-btn" data-qi-action="cancel-edit" data-qi-index="${i}">取消</button>` : ''}
+          <button class="btn btn-action qi-edit-btn" data-qi-action="edit" data-qi-index="${i}">编辑</button>
           <button class="btn btn-clear qi-delete-btn" data-qi-action="delete" data-qi-index="${i}">删除</button>
         </div>
       </div>`;
@@ -112,27 +103,13 @@ function renderSnippetList() {
 }
 
 function bindQuickInsertEvents(container) {
-  // Close buttons
+  // Close button
   const closeBtn = document.getElementById('qiCloseBtn');
   if (closeBtn) closeBtn.addEventListener('click', closeQuickInsertModal);
 
-  const closeFooterBtn = document.getElementById('qiCloseFooterBtn');
-  if (closeFooterBtn) closeFooterBtn.addEventListener('click', closeQuickInsertModal);
-
-  // Add snippet
+  // Add snippet → open form modal
   const addBtn = document.getElementById('qiAddBtn');
-  if (addBtn) addBtn.addEventListener('click', handleAddSnippet);
-
-  // Enter key in input
-  const newInput = document.getElementById('qiNewSnippet');
-  if (newInput) {
-    newInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleAddSnippet();
-      }
-    });
-  }
+  if (addBtn) addBtn.addEventListener('click', function() { openSnippetForm(-1); });
 
   // Snippet list click delegation
   const list = document.getElementById('qiSnippetList');
@@ -173,33 +150,98 @@ function bindQuickInsertEvents(container) {
       }
     });
   }
+
 }
 
-// ── Snippet Actions ──────────────────────────────
+function bindSnippetFormEvents() {
+  const saveBtn = document.getElementById('snippetFormSaveBtn');
+  const cancelBtn = document.getElementById('snippetFormCancelBtn');
+  const modal = document.getElementById('snippetFormModal');
 
-function handleAddSnippet() {
-  const input = document.getElementById('qiNewSnippet');
-  const text = (input?.value || '').trim();
-  if (!text) return;
+  if (saveBtn) saveBtn.addEventListener('click', handleSnippetFormSave);
+  if (cancelBtn) cancelBtn.addEventListener('click', closeSnippetForm);
 
-  snippets.push(text);
+  if (modal) {
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) {
+        closeSnippetForm();
+      }
+    });
+  }
+}
+
+// ── Snippet Form Modal ───────────────────────────
+
+function openSnippetForm(index) {
+  snippetFormIndex = index;
+  const title = document.getElementById('snippetFormModalTitle');
+  const labelEl = document.getElementById('snippetFormLabel');
+  const textEl = document.getElementById('snippetFormText');
+
+  if (title) title.textContent = index >= 0 ? '编辑文本片段' : '新增文本片段';
+
+  if (labelEl && textEl) {
+    if (index >= 0 && index < snippets.length) {
+      const snippet = snippets[index];
+      labelEl.value = typeof snippet === 'object' ? (snippet.label || '') : '';
+      textEl.value = typeof snippet === 'object' ? (snippet.text || '') : '';
+    } else {
+      labelEl.value = '';
+      textEl.value = '';
+    }
+    autoResizeTextarea(labelEl);
+    autoResizeTextarea(textEl);
+    setTimeout(function() { textEl.focus(); }, 50);
+  }
+
+  const modal = document.getElementById('snippetFormModal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeSnippetForm() {
+  const modal = document.getElementById('snippetFormModal');
+  if (modal) modal.classList.add('hidden');
+  snippetFormIndex = -1;
+}
+
+function handleSnippetFormSave() {
+  const labelEl = document.getElementById('snippetFormLabel');
+  const textEl = document.getElementById('snippetFormText');
+  const text = (textEl?.value || '').trim();
+
+  if (!text) {
+    showToast('请输入文本内容', 'error');
+    return;
+  }
+
+  const label = (labelEl?.value || '').trim();
+  const newSnippet = { text: text, label: label };
+
+  if (snippetFormIndex >= 0 && snippetFormIndex < snippets.length) {
+    // Editing existing snippet
+    snippets[snippetFormIndex] = newSnippet;
+  } else {
+    // Adding new snippet
+    snippets.push(newSnippet);
+  }
+
   window.saveSnippets(snippets);
-  editingIndex = -1;
-  input.value = '';
-  autoResizeTextarea(input);
+  closeSnippetForm();
   refreshSnippetList();
-  input.focus();
 }
+
+// ── Snippet List Actions ─────────────────────────
 
 function handleSnippetClick(e) {
   const target = e.target;
 
   // Click on snippet item itself (to insert)
   const item = e.target.closest('.qi-item');
-  if (item && !e.target.closest('button') && !e.target.closest('textarea') && !e.target.closest('.qi-drag-handle')) {
+  if (item && !e.target.closest('button') && !e.target.closest('.qi-drag-handle')) {
     const index = parseInt(item.dataset.qiIndex, 10);
-    if (!Number.isNaN(index) && editingIndex !== index) {
-      const text = snippets[index];
+    if (!Number.isNaN(index)) {
+      const snippet = snippets[index];
+      const text = typeof snippet === 'object' ? (snippet.text || '') : '';
       const container = document.getElementById('quickInsertModalContent');
       const targetEl = container && container._targetEl;
       if (window.insertSnippet(text, targetEl)) {
@@ -221,57 +263,15 @@ function handleSnippetClick(e) {
   const index = parseInt(btn.dataset.qiIndex, 10);
 
   if (action === 'edit') {
-    handleEditSnippet(index);
-  } else if (action === 'cancel-edit') {
-    editingIndex = -1;
-    refreshSnippetList();
+    openSnippetForm(index);
   } else if (action === 'delete') {
     handleDeleteSnippet(index);
-  }
-}
-
-function handleEditSnippet(index) {
-  if (editingIndex === index) {
-    // Save edit
-    const textarea = document.querySelector(`[data-qi-edit="${index}"]`);
-    if (textarea) {
-      const newText = textarea.value.trim();
-      if (newText) {
-        snippets[index] = newText;
-        window.saveSnippets(snippets);
-      }
-    }
-    editingIndex = -1;
-    refreshSnippetList();
-  } else {
-    // Enter edit mode
-    editingIndex = index;
-    refreshSnippetList();
-    // Focus and select the textarea
-    setTimeout(function() {
-      const textarea = document.querySelector(`[data-qi-edit="${index}"]`);
-      if (textarea) {
-        textarea.focus();
-        textarea.select();
-        autoResizeTextarea(textarea);
-        textarea.addEventListener('keydown', function onKey(e) {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleEditSnippet(index);
-          } else if (e.key === 'Escape') {
-            editingIndex = -1;
-            refreshSnippetList();
-          }
-        }, { once: true });
-      }
-    }, 50);
   }
 }
 
 function handleDeleteSnippet(index) {
   if (index < 0 || index >= snippets.length) return;
   snippets.splice(index, 1);
-  editingIndex = -1;
   window.saveSnippets(snippets);
   refreshSnippetList();
 }
@@ -319,7 +319,6 @@ function handleDrop(e) {
   const moved = snippets.splice(dragSrcIndex, 1)[0];
   snippets.splice(dropIndex, 0, moved);
   window.saveSnippets(snippets);
-  editingIndex = -1;
   refreshSnippetList();
 }
 
@@ -332,7 +331,14 @@ function handleDragEnd(e) {
 // ── Import / Export ──────────────────────────────
 
 function handleExportSnippets() {
-  const json = JSON.stringify(snippets, null, 2);
+  // Export in new format: [{ text, label }]
+  const exportData = snippets.map(function(s) {
+    if (typeof s === 'object' && s) {
+      return { text: s.text || '', label: s.label || '' };
+    }
+    return { text: String(s || ''), label: '' };
+  });
+  const json = JSON.stringify(exportData, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -359,26 +365,44 @@ function handleImportFile() {
       return;
     }
 
-    let newSnippets;
-    if (Array.isArray(parsed)) {
-      newSnippets = parsed.filter(function(item) { return typeof item === 'string'; });
-    } else if (parsed && Array.isArray(parsed.snippets)) {
-      newSnippets = parsed.snippets.filter(function(item) { return typeof item === 'string'; });
-    } else {
-      showToast('JSON 格式不正确，应为字符串数组', 'error');
+    if (!Array.isArray(parsed) || parsed.some(function(item) {
+      return typeof item !== 'object' || !item || !item.hasOwnProperty('text');
+    })) {
+      showToast('不支持的格式', 'error');
       return;
     }
+
+    // Convert to standard format
+    const newSnippets = parsed.map(function(item) {
+      return { text: String(item.text || ''), label: String(item.label || '') };
+    });
 
     if (newSnippets.length === 0) {
       showToast('未找到有效的文本片段', 'warning');
       return;
     }
 
-    snippets = newSnippets;
+    const existingTexts = new Set(snippets.map(function(s) { return s.text; }));
+    const toAdd = [];
+    let skipped = 0;
+    newSnippets.forEach(function(item) {
+      if (existingTexts.has(item.text)) {
+        skipped++;
+      } else {
+        toAdd.push(item);
+      }
+    });
+
+    if (toAdd.length === 0) {
+      showToast('所有片段已存在，未导入', 'warning');
+      return;
+    }
+
+    snippets = snippets.concat(toAdd);
     window.saveSnippets(snippets);
-    editingIndex = -1;
     refreshSnippetList();
-    showToast('已导入 ' + snippets.length + ' 条文本片段', 'success');
+    const msg = '已导入 ' + toAdd.length + ' 条文本片段';
+    showToast(skipped > 0 ? msg + '，' + skipped + ' 条重复已跳过' : msg, 'success');
   };
   reader.readAsText(file);
   input.value = '';
@@ -389,9 +413,13 @@ function handleImportFile() {
 function closeQuickInsertModal() {
   const modal = document.getElementById('quickInsertModal');
   if (modal) modal.classList.add('hidden');
-  editingIndex = -1;
+  // Also close the snippet form modal
+  closeSnippetForm();
 }
 
 window.closeQuickInsertModal = closeQuickInsertModal;
+
+// ── Initialize static modal events once ──────────
+bindSnippetFormEvents();
 
 })();

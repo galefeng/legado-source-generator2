@@ -483,6 +483,24 @@
       <div class="modal-content qi-modal-content" id="quickInsertModalContent"></div>
     </div>
 
+    <div id="snippetFormModal" class="modal hidden">
+      <div class="modal-content snippet-form-modal-content">
+        <h3 id="snippetFormModalTitle">新增文本片段</h3>
+        <div class="snippet-form-field">
+          <label class="snippet-form-label">标签（可选）</label>
+          <textarea id="snippetFormLabel" class="input input--sans" rows="2" placeholder="标签（可选）"></textarea>
+        </div>
+        <div class="snippet-form-field">
+          <label class="snippet-form-label">文本内容</label>
+          <textarea id="snippetFormText" class="input" rows="4" placeholder="输入文本内容..."></textarea>
+        </div>
+        <div class="modal-actions">
+          <button id="snippetFormSaveBtn" class="btn btn-primary">保存</button>
+          <button id="snippetFormCancelBtn" class="btn btn-secondary">取消</button>
+        </div>
+      </div>
+    </div>
+
   </div>
   <script src="batch-url-utils.js"></script>
   <script src="import-utils.js"></script>
