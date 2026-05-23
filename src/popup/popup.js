@@ -351,6 +351,13 @@ function addDefaultUserAgentHeader() {
   saveState();
 }
 
+function addMobileUserAgentHeader() {
+  if (!Array.isArray(state.headerItems)) state.headerItems = [];
+  state.headerItems.push({ key: 'User-Agent', value: 'java.getWebViewUA()' });
+  renderHeaderItems();
+  saveState();
+}
+
 function addDefaultRefererHeader() {
   if (!Array.isArray(state.headerItems)) state.headerItems = [];
   state.headerItems.push({ key: 'Referer', value: getDefaultRefer() });
@@ -1754,6 +1761,7 @@ function bindEvents() {
   });
   document.getElementById('addHeaderItemBtn')?.addEventListener('click', () => addHeaderItem('', ''));
   document.getElementById('addUaHeaderBtn')?.addEventListener('click', addDefaultUserAgentHeader);
+  document.getElementById('addMobileUaHeaderBtn')?.addEventListener('click', addMobileUserAgentHeader);
   document.getElementById('addRefererHeaderBtn')?.addEventListener('click', addDefaultRefererHeader);
   document.getElementById('autoFillCfBtn')?.addEventListener('click', () => {
     const el = document.getElementById('loginCheckJs');
@@ -2022,15 +2030,34 @@ function generateJson() {
   };
 
   const items = Array.isArray(state.headerItems) ? state.headerItems : [];
-  const header = {};
-  items.forEach(item => {
-    const key = (item?.key || '').trim();
-    const value = (item?.value || '').trim();
-    if (key && value) {
-      header[key] = value;
-    }
-  });
-  result.header = Object.keys(header).length > 0 ? header : "";
+  const hasMobileUA = items.some(item =>
+    (item?.key || '').trim() === 'User-Agent' &&
+    (item?.value || '').includes('java.getWebViewUA()')
+  );
+  if (hasMobileUA) {
+    const pairs = [];
+    items.forEach(item => {
+      const key = (item?.key || '').trim();
+      const value = (item?.value || '').trim();
+      if (!key || !value) return;
+      if (key === 'User-Agent' && value.includes('java.getWebViewUA()')) {
+        pairs.push(`    "${key}": ${value}`);
+      } else {
+        pairs.push(`    "${key}": ${JSON.stringify(value)}`);
+      }
+    });
+    result.header = `@js:\nJSON.stringify({\n${pairs.join(',\n')}\n})`;
+  } else {
+    const header = {};
+    items.forEach(item => {
+      const key = (item?.key || '').trim();
+      const value = (item?.value || '').trim();
+      if (key && value) {
+        header[key] = value;
+      }
+    });
+    result.header = Object.keys(header).length > 0 ? header : "";
+  }
   result.loginCheckJs = state.loginCheckJs?.trim() || "";
   result.bookSourceComment = state.bookSourceComment?.trim() || "";
 
