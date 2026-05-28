@@ -658,26 +658,36 @@ function renderPropsPanel() {
     </div>
   `;
 
-  const bind = (id, prop, transform) => {
+  const bind = (id, prop, transform, target = 'style') => {
     const el = document.getElementById(id);
     if (!el) return;
     el.addEventListener('input', () => {
       const val = transform ? transform(el) : el.value;
-      exploreItems[selectedCardIndex].style[prop] = val;
+      if (target === 'item') {
+        exploreItems[selectedCardIndex][prop] = val;
+      } else {
+        exploreItems[selectedCardIndex].style[prop] = val;
+      }
       saveExploreState();
       renderExploreCards();
+      updateExploreUrlPreview();
     });
     if (el.type === 'checkbox') {
       el.addEventListener('change', () => {
-        exploreItems[selectedCardIndex].style[prop] = el.checked;
+        if (target === 'item') {
+          exploreItems[selectedCardIndex][prop] = el.checked;
+        } else {
+          exploreItems[selectedCardIndex].style[prop] = el.checked;
+        }
         saveExploreState();
         renderExploreCards();
+        updateExploreUrlPreview();
       });
     }
   };
 
-  bind('propTitle', 'title', el => el.value);
-  bind('propUrl', 'url', el => el.value);
+  bind('propTitle', 'title', el => el.value, 'item');
+  bind('propUrl', 'url', el => el.value, 'item');
   bind('propFlexGrow', 'layout_flexGrow', el => parseFloat(el.value) || 0);
   bind('propFlexShrink', 'layout_flexShrink', el => parseFloat(el.value) || 0);
   bind('propAlignSelf', 'layout_alignSelf', el => el.value);
