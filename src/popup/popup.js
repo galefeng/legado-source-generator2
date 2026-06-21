@@ -630,6 +630,80 @@ function buildNativeIndexRule(baseSelector, fieldKey, fieldData, isListField) {
   return `${baseSelector}.${index}${atPart}`;
 }
 
+function buildJsIndexRule(baseSelector, fieldKey, fieldData, isListField) {
+  if (isListField) {
+    const { start, end } = fieldData.listIndex || {};
+    const startVal = start ? parseInt(start, 10) : 0;
+    const endVal = end ? parseInt(end, 10) : 0;
+
+    let endExpr;
+    if (endVal > 0) {
+      endExpr = String(endVal);
+    } else if (endVal === -1) {
+      endExpr = 'list.size()';
+    } else if (endVal < -1) {
+      endExpr = `list.size() + (${endVal}) + 1`;
+    } else {
+      endExpr = 'list.size()';
+    }
+
+    const startExpr = startVal > 1 ? startVal - 1 : 0;
+    if (startVal > 1 || endVal > 0 || endVal < -1) {
+      return buildJsRule(`        var doc = org.jsoup.Jsoup.parse(result);
+        var list = doc.select("${baseSelector}");
+        var start = ${startExpr};
+        var end = ${endExpr};
+        var result = new org.jsoup.select.Elements();
+        for (var i = start; i < end; i++) {
+          result.add(list.get(i));
+        }
+        return result;`, true);
+    }
+
+    return buildJsRule(`        var doc = org.jsoup.Jsoup.parse(result);
+        var list = doc.select("${baseSelector}");
+        return list;`, true);
+  }
+
+  const selectedTag = fieldData.tagName || '';
+  const listItemTag = fieldData.listItemTagName || '';
+  const singleVal = fieldData.listIndex?.single ? parseInt(fieldData.listIndex.single, 10) : 0;
+
+  if (singleVal === 0) {
+    return buildAtSelector(baseSelector, fieldKey, selectedTag, listItemTag);
+  }
+
+  const index = parseSingleIndex(fieldData.listIndex?.single);
+  if (index === null) {
+    return buildAtSelector(baseSelector, fieldKey, selectedTag, listItemTag);
+  }
+
+  let matchSelector = baseSelector;
+  let returnExpr;
+  if (LINK_FIELDS.includes(fieldKey)) {
+    matchSelector = listItemTag === 'a' ? 'a' : baseSelector + (selectedTag === 'a' ? '' : ' a');
+    returnExpr = 'String(matches.get(index).attr("href"))';
+  } else if (fieldKey === 'coverUrl') {
+    matchSelector = baseSelector + (selectedTag === 'img' ? '' : ' img');
+    returnExpr = 'String(matches.get(index).attr("src"))';
+  } else {
+    returnExpr = 'String(matches.get(index).text())';
+  }
+  const indexExpr = buildJsArrayIndexExpr(index, 'matches.size()');
+
+  return buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
+    var matches = doc.select("${matchSelector}");
+    var index = ${indexExpr};
+    return ${returnExpr};`);
+}
+
+function buildIndexedRule(baseSelector, fieldKey, fieldData, isListField) {
+  if (fieldData.useJsIndex) {
+    return buildJsIndexRule(baseSelector, fieldKey, fieldData, isListField);
+  }
+  return buildNativeIndexRule(baseSelector, fieldKey, fieldData, isListField);
+}
+
 function renderRuleTypeTabs() {
   const container = document.getElementById('ruleTypeTabs');
   if (!container) return;
@@ -1230,92 +1304,7 @@ function handleIndexApply() {
   if (!fieldData.listIndex) fieldData.listIndex = {};
 
   const baseSelector = fieldData.rawSelector;
-
-  if (fieldData.useJsIndex) {
-    // JS script mode: keep existing logic
-    if (isListField) {
-      const { start, end } = fieldData.listIndex;
-      const startVal = start ? parseInt(start, 10) : 0;
-      const endVal = end ? parseInt(end, 10) : 0;
-
-      let endExpr;
-      if (endVal > 0) {
-        endExpr = String(endVal);
-      } else if (endVal === -1) {
-        endExpr = 'list.size()';
-      } else if (endVal < -1) {
-        endExpr = `list.size() + (${endVal}) + 1`;
-      } else {
-        endExpr = 'list.size()';
-      }
-
-      const s = startVal > 1 ? startVal - 1 : 0;
-      let jsCode;
-      if (startVal > 1 || endVal > 0 || endVal < -1) {
-        jsCode = buildJsRule(`        var doc = org.jsoup.Jsoup.parse(result);
-        var list = doc.select("${baseSelector}");
-        var start = ${s};
-        var end = ${endExpr};
-        var result = new org.jsoup.select.Elements();
-        for (var i = start; i < end; i++) {
-          result.add(list.get(i));
-        }
-        return result;`, true);
-      } else {
-        jsCode = buildJsRule(`        var doc = org.jsoup.Jsoup.parse(result);
-        var list = doc.select("${baseSelector}");
-        return list;`, true);
-      }
-
-      rule.fields[field.key].value = jsCode;
-    } else {
-      const singleVal = fieldData.listIndex.single ? parseInt(fieldData.listIndex.single, 10) : 0;
-      const selectedTag = fieldData.tagName || '';
-      const listItemTag = fieldData.listItemTagName || '';
-
-      let jsCode;
-      if (singleVal !== 0) {
-        const index = parseSingleIndex(fieldData.listIndex.single);
-        if (index === null) {
-          rule.fields[field.key].value = buildAtSelector(baseSelector, field.key, selectedTag, listItemTag);
-          saveState();
-          renderFields();
-          return;
-        }
-        const indexExpr = buildJsArrayIndexExpr(index, 'list.size()');
-        let returnExpr;
-        if (listItemTag === 'a' && ['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) {
-          returnExpr = 'String(list.get(index).attr("href"))';
-        } else if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) {
-          returnExpr = 'String(list.get(index).attr("href"))';
-        } else if (field.key === 'coverUrl') {
-          returnExpr = 'String(list.get(index).attr("src"))';
-        } else {
-          returnExpr = 'String(list.get(index).text())';
-        }
-
-        const docSelector = (listItemTag === 'a' && ['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) ? 'a' : baseSelector;
-
-        jsCode = buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
-    var list = doc.select("${docSelector}");
-    var index = ${indexExpr};
-    return ${returnExpr};`);
-      } else {
-        if (['bookUrl', 'chapterUrl', 'tocUrl', 'nextTocUrl', 'nextContentUrl'].includes(field.key)) {
-          jsCode = listItemTag === 'a' ? 'a@href' : (selectedTag === 'a' ? baseSelector + '@href' : baseSelector + ' a@href');
-        } else if (field.key === 'coverUrl') {
-          jsCode = selectedTag === 'img' ? baseSelector + '@src' : baseSelector + ' img@src';
-        } else {
-          jsCode = baseSelector + '@text';
-        }
-      }
-
-      rule.fields[field.key].value = jsCode;
-    }
-  } else {
-    // Native index mode
-    rule.fields[field.key].value = buildNativeIndexRule(baseSelector, field.key, fieldData, isListField);
-  }
+  rule.fields[field.key].value = buildIndexedRule(baseSelector, field.key, fieldData, isListField);
 
   saveState();
   renderFields();
@@ -2537,74 +2526,12 @@ function buildAtSelector(sel, key, tag, listItemTag) {
 function toLegadoRule(selector, fieldKey, fieldData, tagName, listItemTag) {
   const listFields = ['bookList', 'chapterList'];
   const isListField = listFields.includes(fieldKey);
-
-  // Get index info
-  const hasListIndex = fieldData?.listIndex?.start || fieldData?.listIndex?.end;
-  const hasSingleIndex = fieldData?.listIndex?.single !== undefined && fieldData?.listIndex?.single !== '';
-  const hasIndex = isListField ? hasListIndex : hasSingleIndex;
-
-  // No index: return selector with @ extraction suffix
-  if (!hasIndex) {
-    if (isListField) {
-      return selector;
-    }
-    return buildAtSelector(selector, fieldKey, tagName, listItemTag);
-  }
-
-  // Has index: generate JS code
-  const startVal = fieldData.listIndex.start ? parseInt(fieldData.listIndex.start, 10) : 0;
-  const endVal = fieldData.listIndex.end ? parseInt(fieldData.listIndex.end, 10) : 0;
-  const singleVal = fieldData.listIndex.single ? parseInt(fieldData.listIndex.single, 10) : 0;
-
-  // Validate parse result
-  if (isNaN(startVal) || isNaN(endVal) || isNaN(singleVal)) {
-    return selector; // Fallback to pure selector on invalid input
-  }
-
-  if (isListField) {
-    return selector;
-  }
-
-  // Non-list field with index
-  const index = parseSingleIndex(fieldData.listIndex.single);
-
-  // If index is 0 (default), no need to generate JS - return selector with @ suffix
-  if (index === null) {
-    return buildAtSelector(selector, fieldKey, tagName, listItemTag);
-  }
-
-  if (fieldData.useJsIndex) {
-    let returnExpr;
-    if (LINK_FIELDS.includes(fieldKey)) {
-      if (listItemTag === 'a') {
-        returnExpr = 'String(list.get(index).attr("href"))';
-        return buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
-    var list = doc.select("a");
-    var index = ${buildJsArrayIndexExpr(index, 'list.size()')};
-    return ${returnExpr};`);
-      }
-      returnExpr = 'String(matches.get(index).attr("href"))';
-    } else if (fieldKey === 'coverUrl') {
-      returnExpr = 'String(matches.get(index).attr("src"))';
-    } else {
-      returnExpr = 'String(matches.get(index).text())';
-    }
-
-    const matchSelector = fieldKey === 'coverUrl'
-      ? selector + (tagName === 'img' ? '' : ' img')
-      : selector + (LINK_FIELDS.includes(fieldKey) && tagName !== 'a' ? ' a' : '');
-    return buildJsRule(`    var doc = org.jsoup.Jsoup.parse(result);
-    var matches = doc.select("${matchSelector}");
-    var index = ${buildJsArrayIndexExpr(index, 'matches.size()')};
-    return ${returnExpr};`);
-  }
-
-  // Native index mode
-  if (listItemTag === 'a' && LINK_FIELDS.includes(fieldKey)) {
-    return `a.${index}@href`;
-  }
-  const atPart = buildAtSelector('', fieldKey, tagName, listItemTag);
-  return `${selector}.${index}${atPart}`;
+  const nextFieldData = {
+    ...fieldData,
+    tagName: tagName || fieldData.tagName || '',
+    listItemTagName: listItemTag || fieldData.listItemTagName || '',
+  };
+  return buildIndexedRule(selector, fieldKey, nextFieldData, isListField);
 }
 
 function handleSelectorSelected(message) {
