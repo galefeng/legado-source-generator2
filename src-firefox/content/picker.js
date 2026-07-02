@@ -388,7 +388,11 @@
     const match = raw.match(/^text\.([^@]+?)(?:@([^@\s]+))?$/);
     if (!match) return null;
 
-    const text = normalizePreviewText(match[1]);
+    let text = normalizePreviewText(match[1]);
+    const indexMatch = text.match(/^(.*)\.(-?\d+)$/);
+    if (indexMatch && indexMatch[1].trim()) {
+      text = indexMatch[1].trim();
+    }
     if (!text) return null;
 
     return { text, attr: match[2] || '' };

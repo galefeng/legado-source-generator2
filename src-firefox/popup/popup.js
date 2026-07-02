@@ -6,6 +6,7 @@ const LIST_SCOPED_FIELDS = {
   search: ['name', 'author', 'kind', 'wordCount', 'lastChapter', 'intro', 'coverUrl', 'bookUrl', 'checkKeyWord'],
   toc: ['chapterName', 'chapterUrl', 'isVolume', 'updateTime', 'isVip', 'isPay'],
 };
+const DEBUG_PREFIX = '<js>java.log("输入:" + result);</js>';
 
 const RULE_TYPES = {
   explore: {
@@ -847,16 +848,14 @@ function bindFieldEvents() {
       if (!rule.fields[field.key]) rule.fields[field.key] = {};
       const fieldData = rule.fields[field.key];
 
-      const DEBUG_PREFIX = '<js>java.log("输入:" + result);</js>';
-
       if (e.target.checked) {
         if (!fieldData.value) {
           fieldData.value = DEBUG_PREFIX;
-        } else if (!fieldData.value.startsWith(DEBUG_PREFIX)) {
-          fieldData.value = DEBUG_PREFIX + fieldData.value;
+        } else {
+          fieldData.value = applyDebugPrefix(fieldData.value, true);
         }
-      } else if (fieldData.value && fieldData.value.startsWith(DEBUG_PREFIX)) {
-        fieldData.value = fieldData.value.slice(DEBUG_PREFIX.length);
+      } else if (fieldData.value) {
+        fieldData.value = applyDebugPrefix(fieldData.value, false);
       }
       fieldData.debug = e.target.checked;
 
@@ -1016,14 +1015,71 @@ function resolvePreviewSelector(input) {
   return '';
 }
 
-function resolveTextPreviewRule(input) {
-  const raw = (input || '').trim();
-  if (!raw || raw.startsWith('<js>')) return '';
+function stripDebugPrefix(ruleValue) {
+  const raw = ruleValue || '';
+  return raw.startsWith(DEBUG_PREFIX) ? raw.slice(DEBUG_PREFIX.length) : raw;
+}
+
+function applyDebugPrefix(ruleValue, enabled) {
+  const raw = ruleValue || '';
+  if (!raw) return raw;
+  const stripped = stripDebugPrefix(raw);
+  return enabled ? DEBUG_PREFIX + stripped : stripped;
+}
+
+function parseTextRule(input) {
+  const raw = stripDebugPrefix(input || '').trim();
+  if (!raw || raw.startsWith('<js>')) return null;
 
   const match = raw.match(/^text\.([^@]+?)(?:@[^@\s]+)?$/);
-  if (!match || !match[1].trim()) return '';
+  if (!match || !match[1].trim()) return null;
 
-  return raw;
+  let text = match[1].trim();
+  const indexMatch = text.match(/^(.*)\.(-?\d+)$/);
+  const index = indexMatch && indexMatch[1].trim()
+    ? parseInt(indexMatch[2], 10)
+    : null;
+  if (index !== null) {
+    text = indexMatch[1].trim();
+  }
+
+  const attrMatch = raw.match(/@([^@\s]+)$/);
+  return {
+    text,
+    attr: attrMatch ? attrMatch[1] : '',
+    index,
+  };
+}
+
+function buildTextRule(parsed, index) {
+  if (!parsed || !parsed.text) return '';
+  const indexPart = index === null || index === undefined ? '' : `.${index}`;
+  const attrPart = parsed.attr ? `@${parsed.attr}` : '';
+  return `text.${parsed.text}${indexPart}${attrPart}`;
+}
+
+function resolveTextPreviewRule(input) {
+  const parsed = parseTextRule(input);
+  return parsed ? stripDebugPrefix(input || '').trim() : '';
+}
+
+function buildTextIndexedRule(ruleValue, fieldData, isListField) {
+  if (isListField) return '';
+
+  const parsed = parseTextRule(ruleValue);
+  if (!parsed) return '';
+
+  const singleVal = fieldData.listIndex?.single ? parseInt(fieldData.listIndex.single, 10) : 0;
+  if (!singleVal || isNaN(singleVal) || singleVal === 0) {
+    return buildTextRule(parsed, null);
+  }
+
+  const index = parseSingleIndex(fieldData.listIndex?.single);
+  if (index === null) {
+    return buildTextRule(parsed, null);
+  }
+
+  return buildTextRule(parsed, index);
 }
 
 function buildPreviewMessage(ruleValue, previewSelector) {
@@ -1123,12 +1179,14 @@ function handleUseJsIndexChange(e) {
   // Auto-regenerate rule if rawSelector exists
   if (fieldData.rawSelector) {
     const isListField = isListFieldKey(field.key);
+    const textRule = buildTextIndexedRule(fieldData.rawSelector, fieldData, isListField);
     if (fieldData.useJsIndex) {
       // Trigger JS generation by re-running handleIndexApply logic
       handleIndexApply();
       return;
     } else {
-      fieldData.value = buildNativeIndexRule(fieldData.rawSelector, field.key, fieldData, isListField);
+      const nextValue = textRule || buildNativeIndexRule(fieldData.rawSelector, field.key, fieldData, isListField);
+      fieldData.value = applyDebugPrefix(nextValue, fieldData.debug);
     }
   }
 
@@ -1149,7 +1207,9 @@ function handleIndexApply() {
   if (!fieldData.listIndex) fieldData.listIndex = {};
 
   const baseSelector = fieldData.rawSelector;
-  rule.fields[field.key].value = buildIndexedRule(baseSelector, field.key, fieldData, isListField);
+  const textRule = buildTextIndexedRule(baseSelector, fieldData, isListField);
+  const nextValue = textRule || buildIndexedRule(baseSelector, field.key, fieldData, isListField);
+  rule.fields[field.key].value = applyDebugPrefix(nextValue, fieldData.debug);
 
   saveState();
   renderFields();
