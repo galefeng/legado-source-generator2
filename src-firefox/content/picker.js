@@ -377,6 +377,68 @@
     }
   }
 
+  function normalizePreviewText(text) {
+    return (text || '').trim().replace(/\s+/g, ' ');
+  }
+
+  function parseTextPreviewRule(rule) {
+    const raw = (rule || '').trim();
+    if (!raw || raw.includes('<js>')) return null;
+
+    const match = raw.match(/^text\.([^@]+?)(?:@([^@\s]+))?$/);
+    if (!match) return null;
+
+    const text = normalizePreviewText(match[1]);
+    if (!text) return null;
+
+    return { text, attr: match[2] || '' };
+  }
+
+  function pickPreviewSourceElement(el, attr) {
+    if (!attr) return el;
+
+    if (attr === 'href') {
+      return el.matches('a[href]')
+        ? el
+        : (el.closest('a[href]') || el.querySelector('a[href]') || el);
+    }
+
+    try {
+      if (el.hasAttribute(attr)) return el;
+      return el.querySelector(`[${attr}]`) || el;
+    } catch (e) {
+      return el;
+    }
+  }
+
+  function collectTextRulePreviews(rule) {
+    const parsed = parseTextPreviewRule(rule);
+    if (!parsed) return [];
+
+    const elements = Array.from(document.querySelectorAll('body *'))
+      .filter(el => !['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE'].includes(el.tagName));
+
+    const exactMatches = elements.filter(el => normalizePreviewText(el.textContent) === parsed.text);
+    const matches = exactMatches.length
+      ? exactMatches
+      : elements.filter(el => normalizePreviewText(el.textContent).includes(parsed.text));
+
+    const minimalMatches = matches.filter(el => !matches.some(other => other !== el && el.contains(other)));
+
+    const seen = new Set();
+    const results = [];
+    minimalMatches.forEach(el => {
+      const sourceEl = pickPreviewSourceElement(el, parsed.attr);
+      if (seen.has(sourceEl)) return;
+      seen.add(sourceEl);
+      results.push({
+        text: normalizePreviewText(sourceEl.textContent).substring(0, 150),
+        html: sourceEl.outerHTML,
+      });
+    });
+    return results;
+  }
+
   function confirmSelection() {
     if (!currentHoveredElement) return;
 
@@ -789,6 +851,15 @@
             });
           }
           sendResponse({ previews: previewResults, count: previewCount });
+        } catch (e) {
+          sendResponse({ previews: [], count: 0 });
+        }
+        break;
+
+      case 'previewRule':
+        try {
+          const previewResults = collectTextRulePreviews(message.rule);
+          sendResponse({ previews: previewResults, count: previewResults.length });
         } catch (e) {
           sendResponse({ previews: [], count: 0 });
         }

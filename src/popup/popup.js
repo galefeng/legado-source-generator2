@@ -1211,30 +1211,36 @@ function resolvePreviewSelector(input) {
   return '';
 }
 
-function previewManualSelector(fieldKey, selector) {
-  const previewSelector = resolvePreviewSelector(selector);
+function resolveTextPreviewRule(input) {
+  const raw = (input || '').trim();
+  if (!raw || raw.startsWith('<js>')) return '';
 
-  // Always set rawSelector so the rule label shows even if preview fails
-  const rule = getRuleState();
-  const fieldData = rule.fields[fieldKey];
-  if (fieldData) {
-    fieldData.rawSelector = previewSelector || selector;
-    // Set bookListSelector for list fields so subsequent fields can scope selection
-    if (isListFieldKey(fieldKey)) {
-      rule.bookListSelector = previewSelector || selector;
-    }
-    saveState();
-    renderFields();
+  const match = raw.match(/^text\.([^@]+?)(?:@[^@\s]+)?$/);
+  if (!match || !match[1].trim()) return '';
+
+  return raw;
+}
+
+function buildPreviewMessage(ruleValue, previewSelector) {
+  const previewRule = resolveTextPreviewRule(ruleValue);
+  if (previewRule) {
+    return { action: 'previewRule', rule: previewRule };
   }
+  if (previewSelector) {
+    return { action: 'previewSelector', selector: previewSelector };
+  }
+  return null;
+}
 
-  if (!previewSelector) return;
+function requestFieldPreview(fieldKey, ruleValue, previewSelector) {
+  if (!ruleValue || ruleValue.startsWith('<js>')) return;
+
+  const message = buildPreviewMessage(ruleValue, previewSelector);
+  if (!message) return;
 
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     if (!tabs[0]) return;
-    chrome.tabs.sendMessage(tabs[0].id, {
-      action: 'previewSelector',
-      selector: previewSelector,
-    }, (response) => {
+    chrome.tabs.sendMessage(tabs[0].id, message, (response) => {
       if (chrome.runtime.lastError || !response) return;
       const rule = getRuleState();
       const fieldData = rule.fields[fieldKey];
@@ -1245,6 +1251,26 @@ function previewManualSelector(fieldKey, selector) {
       }
     });
   });
+}
+
+function previewManualSelector(fieldKey, selector) {
+  const previewSelector = resolvePreviewSelector(selector);
+  const previewRule = resolveTextPreviewRule(selector);
+
+  // Always set rawSelector so the rule label shows even if preview fails
+  const rule = getRuleState();
+  const fieldData = rule.fields[fieldKey];
+  if (fieldData) {
+    fieldData.rawSelector = previewRule || previewSelector || selector;
+    // Set bookListSelector for list fields so subsequent fields can scope selection
+    if (isListFieldKey(fieldKey)) {
+      rule.bookListSelector = previewSelector || selector;
+    }
+    saveState();
+    renderFields();
+  }
+
+  requestFieldPreview(fieldKey, selector, previewSelector);
 }
 
 function handleClearField() {
@@ -1516,7 +1542,8 @@ function handleFieldBlur(e) {
 
   // Set rawSelector and bookListSelector for preview display
   const previewSelector = resolvePreviewSelector(value);
-  fieldData.rawSelector = previewSelector || value;
+  const previewRule = resolveTextPreviewRule(value);
+  fieldData.rawSelector = previewRule || previewSelector || value;
   if (isListFieldKey(field.key)) {
     rule.bookListSelector = previewSelector || value;
   }
@@ -1526,25 +1553,7 @@ function handleFieldBlur(e) {
   updateStepIndicator();
   renderFields();
 
-  // Async preview query
-  if (previewSelector && !value.startsWith('<js>')) {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (!tabs[0]) return;
-      chrome.tabs.sendMessage(tabs[0].id, {
-        action: 'previewSelector',
-        selector: previewSelector,
-      }, (response) => {
-        if (chrome.runtime.lastError || !response) return;
-        const r = getRuleState();
-        const fd = r.fields[field.key];
-          if (fd) {
-            fd.previews = response.previews || [];
-            saveState();
-            renderFields();
-          }
-      });
-    });
-  }
+  requestFieldPreview(field.key, value, previewSelector);
 }
 
 function goToNextStep() {
