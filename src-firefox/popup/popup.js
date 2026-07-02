@@ -1,5 +1,12 @@
 const RULE_TYPE_ORDER = ['search', 'explore', 'bookInfo', 'toc', 'content'];
 
+const LIST_FIELD_KEYS = ['bookList', 'chapterList'];
+const LIST_SCOPED_FIELDS = {
+  explore: ['name', 'author', 'kind', 'wordCount', 'lastChapter', 'intro', 'coverUrl', 'bookUrl'],
+  search: ['name', 'author', 'kind', 'wordCount', 'lastChapter', 'intro', 'coverUrl', 'bookUrl', 'checkKeyWord'],
+  toc: ['chapterName', 'chapterUrl', 'isVolume', 'updateTime', 'isVip', 'isPay'],
+};
+
 const RULE_TYPES = {
   explore: {
     label: '发现页',
@@ -117,6 +124,14 @@ function getFields() {
 
 function getRuleState() {
   return state.rules[state.activeRuleType];
+}
+
+function isListFieldKey(fieldKey) {
+  return LIST_FIELD_KEYS.includes(fieldKey);
+}
+
+function isListScopedField(ruleType, fieldKey) {
+  return (LIST_SCOPED_FIELDS[ruleType] || []).includes(fieldKey);
 }
 
 function renderModeTabs() {
@@ -582,14 +597,14 @@ function renderFields() {
   const isLinkField = LINK_FIELDS.includes(field.key);
   const rawValue = fieldData.value || '';
   const value = (fieldData.webView && isLinkField && rawValue) ? applyWebView(rawValue) : rawValue;
-  const isNativeListField = ['bookList', 'chapterList'].includes(field.key);
+  const isNativeListField = isListFieldKey(field.key);
   const isPickerListField = isNativeListField;
   const fieldIndex = fieldData.listIndex || {};
 
   // Get list field's index range for non-list fields so they respect the list range
   let listIndexRange = null;
-  if (!isPickerListField) {
-    const listFields = fields.filter(f => ['bookList', 'chapterList'].includes(f.key));
+  if (!isPickerListField && isListScopedField(state.activeRuleType, field.key)) {
+    const listFields = fields.filter(f => isListFieldKey(f.key));
     if (listFields.length > 0) {
       const listFieldData = rule.fields[listFields[0].key] || {};
       listIndexRange = listFieldData.listIndex || null;
@@ -856,17 +871,18 @@ function handleSelectElement() {
   const rule = getRuleState();
   const field = fields[rule.currentStep];
 
-  const nativeListFields = ['bookList', 'chapterList'];
-  const isListField = nativeListFields.includes(field.key);
-  const isPageScopedList = ['explore', 'search', 'toc'].includes(state.activeRuleType);
+  const isListField = isListFieldKey(field.key);
+  const useListScope = isListScopedField(state.activeRuleType, field.key);
 
-  if (!isListField && isPageScopedList && !rule.bookListSelector) {
+  if (useListScope && !rule.bookListSelector) {
     return;
   }
 
   let itemSelector = '';
-  if (rule.bookListSelector && isPageScopedList) {
+  let rootSelector = '';
+  if (rule.bookListSelector && useListScope) {
     itemSelector = rule.bookListSelector;
+    rootSelector = rule.bookListSelector;
   }
 
   rule.fieldStates[field.key] = 'picking';
@@ -883,11 +899,11 @@ function handleSelectElement() {
       action: 'startPicker',
       step: field.key,
       isListField,
-      rootSelector: rule.bookListSelector,
+      rootSelector,
       itemSelector,
     }, (response) => {
       if (chrome.runtime.lastError) {
-        reInjectContentScript(tabId, field.key, isListField, rule.bookListSelector, itemSelector);
+        reInjectContentScript(tabId, field.key, isListField, rootSelector, itemSelector);
       }
     });
   });
@@ -1009,8 +1025,7 @@ function previewManualSelector(fieldKey, selector) {
   if (fieldData) {
     fieldData.rawSelector = previewSelector || selector;
     // Set bookListSelector for list fields so subsequent fields can scope selection
-    const listFields = ['bookList', 'chapterList'];
-    if (listFields.includes(fieldKey)) {
+    if (isListFieldKey(fieldKey)) {
       rule.bookListSelector = previewSelector || selector;
     }
     saveState();
@@ -1045,8 +1060,7 @@ function handleClearField() {
   delete rule.fields[field.key];
   rule.fieldStates[field.key] = 'pending';
 
-  const listFields = ['bookList', 'chapterList'];
-  if (listFields.includes(field.key)) {
+  if (isListFieldKey(field.key)) {
     rule.bookListSelector = null;
   }
 
@@ -1082,7 +1096,7 @@ function handleUseJsIndexChange(e) {
 
   // Auto-regenerate rule if rawSelector exists
   if (fieldData.rawSelector) {
-    const isListField = ['bookList', 'chapterList'].includes(field.key);
+    const isListField = isListFieldKey(field.key);
     if (fieldData.useJsIndex) {
       // Trigger JS generation by re-running handleIndexApply logic
       handleIndexApply();
@@ -1101,7 +1115,7 @@ function handleIndexApply() {
   const rule = getRuleState();
   const field = fields[rule.currentStep];
 
-  const isListField = ['bookList', 'chapterList'].includes(field.key);
+  const isListField = isListFieldKey(field.key);
 
   const fieldData = rule.fields[field.key];
   if (!fieldData || !fieldData.rawSelector) return;
@@ -1307,8 +1321,7 @@ function handleFieldBlur(e) {
   // Set rawSelector and bookListSelector for preview display
   const previewSelector = resolvePreviewSelector(value);
   fieldData.rawSelector = previewSelector || value;
-  const listFields = ['bookList', 'chapterList'];
-  if (listFields.includes(field.key)) {
+  if (isListFieldKey(field.key)) {
     rule.bookListSelector = previewSelector || value;
   }
 
@@ -2269,8 +2282,7 @@ function buildAtSelector(sel, key, tag, listItemTag) {
 }
 
 function toLegadoRule(selector, fieldKey, fieldData, tagName, listItemTag) {
-  const listFields = ['bookList', 'chapterList'];
-  const isListField = listFields.includes(fieldKey);
+  const isListField = isListFieldKey(fieldKey);
   const nextFieldData = {
     ...fieldData,
     tagName: tagName || fieldData.tagName || '',
@@ -2304,8 +2316,7 @@ function handleSelectorSelected(message) {
   };
   rule.fieldStates[step] = 'selected';
 
-  const listFields = ['bookList', 'chapterList'];
-  if (listFields.includes(step)) {
+  if (isListFieldKey(step)) {
     rule.bookListSelector = selector;
   }
 
